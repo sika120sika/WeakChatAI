@@ -121,14 +121,34 @@ def tool_search_content(args):
     return {"results": results}
 
 
-SKIP_DIRS = {"node_modules", "__pycache__", ".git", ".venv", "venv", "dist", "build", ".next", ".idea", ".vs", "out"}
+SKIP_DIRS = {
+    "node_modules", "__pycache__", ".git", ".venv", "venv",
+    "dist", "build", ".next", ".idea", ".vs", "out",
+    # C# / .NET
+    "bin", "obj", ".mono",
+    # Godot
+    "export", ".godot",
+    # その他ビルド成果物
+    "cache", ".cache", "tmp", ".tmp",
+}
+
+# get_tree でスキップするバイナリ・自動生成ファイルの拡張子
+TREE_SKIP_EXTS = {
+    ".import", ".uid",                                          # Godot 自動生成
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tga",  # 画像
+    ".wav", ".mp3", ".ogg", ".flac",                           # 音声
+    ".ttf", ".otf", ".woff", ".woff2",                         # フォント
+    ".zip", ".tar", ".gz", ".7z", ".rar",                      # アーカイブ
+    ".exe", ".dll", ".so", ".a", ".lib", ".pdb",               # バイナリ
+    ".blend", ".fbx", ".obj", ".gltf", ".glb",                 # 3D アセット
+}
 
 
 def tool_get_tree(args):
     rel  = args.get("path", ".")
     base = _safe_path(rel)
-    max_depth = min(int(args.get("max_depth", 3)), 5)
-    MAX_LINES = 400
+    max_depth = min(int(args.get("max_depth", 4)), 6)
+    MAX_LINES = 800
 
     lines = []
 
@@ -141,7 +161,9 @@ def tool_get_tree(args):
             return
         dirs  = [e for e in entries if os.path.isdir(os.path.join(path, e))
                  and e not in SKIP_DIRS and not e.startswith(".")]
-        files = [e for e in entries if not os.path.isdir(os.path.join(path, e))]
+        files = [e for e in entries
+                 if not os.path.isdir(os.path.join(path, e))
+                 and os.path.splitext(e)[1].lower() not in TREE_SKIP_EXTS]
         items = dirs + files
         for i, name in enumerate(items):
             if len(lines) >= MAX_LINES:
