@@ -11,7 +11,7 @@ start "CodeChat Server" python "%~dp0server.py"
 
 :: サーバーが立ち上がるまで待機
 echo   起動待機中...
-timeout /t 2 /nobreak > nul
+timeout /t 3 /nobreak > nul
 
 :: ブラウザを開く
 echo   ブラウザを開きます ^^ http://localhost:3000
