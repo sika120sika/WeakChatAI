@@ -1707,6 +1707,22 @@ function parseToolCallsFromContent(content) {
   return results;
 }
 
+// ── Agent auto-step helpers ─────────────────────────────────
+function addAutoStep(stepsEl, icon, label) {
+  const step = document.createElement('div');
+  step.className = 'agent-step';
+  step.innerHTML = `<div class="step-header"><span>${icon}</span><span class="step-name">${escHtml(label)}</span><span class="step-badge badge-auto">自動</span></div>`;
+  stepsEl.appendChild(step);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return step;
+}
+function resolveAutoStep(step, text, isErr = false) {
+  const d = document.createElement('div');
+  d.className = 'step-result' + (isErr ? ' err' : ' ok');
+  d.textContent = (isErr ? '✗ ' : '✓ ') + text;
+  step.appendChild(d);
+}
+
 // ── Agent loop ──────────────────────────────────────────────
 async function runAgent(userText) {
   appendMessage('user', userText);
@@ -1724,27 +1740,37 @@ async function runAgent(userText) {
     }
   } catch {}
 
-  // ── メッセージ内のファイル名を事前に find_files で検索して注入 ──────────
+  // ── メッセージ内のファイル名を自動 find_files + read_file して注入 ──────
   const FILE_EXTS = /\.(cs|gd|py|js|ts|jsx|tsx|json|yaml|yml|cfg|ini|tscn|tres|sh|md|toml|xml|html|css|cpp|c|h|rs|go|java|kt|rb|php)$/i;
   const mentioned = [...new Set(
     (userText.match(/\b[\w\-]+\.[a-zA-Z]{1,6}\b/g) || []).filter(f => FILE_EXTS.test(f))
-  )].slice(0, 4);
+  )].slice(0, 3);
 
-  if (mentioned.length > 0) {
-    const searchLines = [];
-    for (const fname of mentioned) {
-      try {
-        const r = await callServer('find_files', { pattern: `*${fname}*` });
-        if (r.files?.length > 0) {
-          searchLines.push(`「${fname}」→ ${r.files.slice(0, 8).join(', ')}`);
-        } else if (!r.error) {
-          searchLines.push(`「${fname}」→ 見つかりませんでした`);
-        }
-      } catch {}
-    }
-    if (searchLines.length > 0) {
-      treeSection += `\n\n【事前ファイル検索結果（自動実行済み）】\n${searchLines.join('\n')}\n上記パスを read_file で使用してください。`;
-    }
+  for (const fname of mentioned) {
+    const searchStep = addAutoStep(stepsEl, '🔎', `find_files: *${fname}*`);
+    try {
+      const r = await callServer('find_files', { pattern: `*${fname}*` });
+      if (r.files?.length > 0) {
+        resolveAutoStep(searchStep, `${r.files.length}件: ${r.files.slice(0, 3).join(', ')}`);
+        treeSection += `\n\n「${fname}」のパス: ${r.files.slice(0, 5).join(', ')}`;
+        // 最初のファイルを自動読み込み
+        const readStep = addAutoStep(stepsEl, '📄', `read_file: ${r.files[0]}`);
+        try {
+          const rc = await callServer('read_file', { path: r.files[0] });
+          if (rc.content) {
+            const lines = rc.content.split('\n');
+            const preview = lines.slice(0, 120).join('\n');
+            treeSection += `\n\n=== ${r.files[0]} (${rc.chars}文字) ===\n${preview}${lines.length > 120 ? '\n...(120行以降省略)' : ''}`;
+            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字`);
+          }
+        } catch { resolveAutoStep(readStep, 'エラー', true); }
+      } else if (!r.error) {
+        resolveAutoStep(searchStep, '見つかりませんでした');
+        treeSection += `\n\n「${fname}」は作業ディレクトリ内に見つかりませんでした。`;
+      } else {
+        resolveAutoStep(searchStep, 'エラー', true);
+      }
+    } catch { resolveAutoStep(searchStep, 'サーバー未接続', true); }
   }
 
   const agentMessages = [{ role: 'system', content: AGENT_SYSPROMPT + treeSection }, ...history];
