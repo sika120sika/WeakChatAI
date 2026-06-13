@@ -1869,6 +1869,7 @@ async function runAgent(userText) {
       // ── Final answer ──────────────────────────────────────
       const finalText = msg.content || '';
       updateBubble(answerEl, finalText);
+      addCopyBtn(answerEl);
       history.push({ role: 'assistant', content: finalText });
       saveSession();
       return;
