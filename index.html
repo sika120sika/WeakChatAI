@@ -1780,24 +1780,10 @@ async function runAgent(userText) {
         try {
           const rc = await callServer('read_file', { path: target });
           if (rc.content) {
-            const CHAR_LIMIT = 50000;
-            const lines = rc.content.split('\n');
-            const totalLines = lines.length;
-            let preview = rc.content;
-            let truncated = false;
-            if (rc.content.length > CHAR_LIMIT) {
-              preview = rc.content.slice(0, CHAR_LIMIT);
-              const lastNl = preview.lastIndexOf('\n');
-              if (lastNl > 0) preview = preview.slice(0, lastNl);
-              truncated = true;
-            }
-            const shownLines = preview.split('\n').length;
+            const totalLines = rc.content.split('\n').length;
             const header = `=== ${target} (全${totalLines}行・${rc.chars.toLocaleString()}文字) ===`;
-            const footer = truncated
-              ? `\n...(先頭${shownLines}行を表示。残り${totalLines - shownLines}行は省略)`
-              : '';
-            userContext += `\n${header}\n${preview}${footer}\n`;
-            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字 / ${totalLines}行${truncated ? ` (先頭${shownLines}行)` : ''}`);
+            userContext += `\n${header}\n${rc.content}\n`;
+            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字 / ${totalLines}行`);
           }
         } catch { resolveAutoStep(readStep, 'エラー', true); }
       } else if (!r.error) {
