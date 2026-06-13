@@ -1743,23 +1743,39 @@ async function runAgent(userText) {
   // ── メッセージ内のファイル名を自動 find_files + read_file して注入 ──────
   // ファイル内容はユーザーメッセージ直前に置く（systemより注目される）
   const FILE_EXTS = /\.(cs|gd|py|js|ts|jsx|tsx|json|yaml|yml|cfg|ini|tscn|tres|sh|md|toml|xml|html|css|cpp|c|h|rs|go|java|kt|rb|php)$/i;
-  const mentioned = [...new Set(
+
+  // 拡張子あり: "TownScreen.cs" → *TownScreen.cs* で検索
+  const withExt = [...new Set(
     (userText.match(/\b[\w\-]+\.[a-zA-Z]{1,6}\b/g) || []).filter(f => FILE_EXTS.test(f))
-  )].slice(0, 3);
+  )].map(f => ({ name: f, pattern: `*${f}*` }));
+
+  // 拡張子なし PascalCase: "TownScreen" → *TownScreen.* で検索
+  const pascalRe = /\b[A-Z][a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g;
+  const withoutExt = [...new Set(
+    (userText.match(pascalRe) || []).filter(w =>
+      !withExt.some(f => f.name.toLowerCase().startsWith(w.toLowerCase() + '.'))
+    )
+  )].map(w => ({ name: w, pattern: `*${w}.*` }));
+
+  // 拡張子ありを優先・合計3件まで
+  const mentioned = [...withExt, ...withoutExt].slice(0, 3);
 
   let userContext = '';  // ユーザーメッセージ直前に挿入するファイル内容
+  const alreadyRead = new Set();
 
-  for (const fname of mentioned) {
-    const searchStep = addAutoStep(stepsEl, '🔎', `find_files: *${fname}*`);
+  for (const { name, pattern } of mentioned) {
+    const searchStep = addAutoStep(stepsEl, '🔎', `find_files: ${pattern}`);
     try {
-      const r = await callServer('find_files', { pattern: `*${fname}*` });
+      const r = await callServer('find_files', { pattern });
       if (r.files?.length > 0) {
         resolveAutoStep(searchStep, `${r.files.length}件: ${r.files.slice(0, 3).join(', ')}`);
-        treeSection += `\n\n「${fname}」のパス: ${r.files.slice(0, 5).join(', ')}`;
-        // 最初のファイルを自動読み込み
-        const readStep = addAutoStep(stepsEl, '📄', `read_file: ${r.files[0]}`);
+        treeSection += `\n\n「${name}」のパス: ${r.files.slice(0, 5).join(', ')}`;
+        // 未読の最初のファイルを自動読み込み
+        const target = r.files.find(f => !alreadyRead.has(f)) ?? r.files[0];
+        alreadyRead.add(target);
+        const readStep = addAutoStep(stepsEl, '📄', `read_file: ${target}`);
         try {
-          const rc = await callServer('read_file', { path: r.files[0] });
+          const rc = await callServer('read_file', { path: target });
           if (rc.content) {
             const CHAR_LIMIT = 15000;
             const lines = rc.content.split('\n');
@@ -1773,7 +1789,7 @@ async function runAgent(userText) {
               truncated = true;
             }
             const shownLines = preview.split('\n').length;
-            const header = `=== ${r.files[0]} (全${totalLines}行・${rc.chars.toLocaleString()}文字) ===`;
+            const header = `=== ${target} (全${totalLines}行・${rc.chars.toLocaleString()}文字) ===`;
             const footer = truncated
               ? `\n...(先頭${shownLines}行を表示。残り${totalLines - shownLines}行は省略)`
               : '';
@@ -1783,7 +1799,7 @@ async function runAgent(userText) {
         } catch { resolveAutoStep(readStep, 'エラー', true); }
       } else if (!r.error) {
         resolveAutoStep(searchStep, '見つかりませんでした');
-        treeSection += `\n\n「${fname}」は作業ディレクトリ内に見つかりませんでした。`;
+        treeSection += `\n\n「${name}」は作業ディレクトリ内に見つかりませんでした。`;
       } else {
         resolveAutoStep(searchStep, 'エラー', true);
       }
