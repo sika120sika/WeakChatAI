@@ -1758,7 +1758,8 @@ const AGENT_SYSPROMPT =
 - ファイルが見当たらない場合は find_files でパターン検索してから「見つからない」と回答する
 - Godot プロジェクトのパスに "res://" が含まれる場合は先頭の "res://" を除去して使用する
 - 必要な情報はツールで収集してから回答する
-- 日本語で回答する`;
+- 日本語で回答する
+- ユーザーメッセージ内に [参照ファイル（自動取得済み）] として提供されたファイルは読み込み済みである。それらのファイルを read_file で再度読み込んではならない`;
 
 // ── Tool call fallback: テキスト中の JSON を検出 ────────────
 function parseToolCallsFromContent(content) {
@@ -1946,13 +1947,20 @@ async function runAgent(userText) {
           resolveStep(step, result, false);
           agentMessages.push({ role: 'tool', content: 'ユーザーがこの操作を拒否しました。別のアプローチを検討してください。' });
         } else {
-          try {
-            result = await callServer(name, args);
-          } catch (e) {
-            result = { error: `server.py に接続できません: ${e.message}` };
+          // 自動注入済みファイルへの重複 read_file をインターセプト
+          if (name === 'read_file' && args.path && alreadyRead.has(args.path)) {
+            result = { note: `このファイルはユーザーメッセージの [参照ファイル（自動取得済み）] に含まれています。そちらを参照してください。` };
+            resolveStep(step, result);
+            agentMessages.push({ role: 'tool', content: JSON.stringify(result) });
+          } else {
+            try {
+              result = await callServer(name, args);
+            } catch (e) {
+              result = { error: `server.py に接続できません: ${e.message}` };
+            }
+            resolveStep(step, result, NEEDS_APPROVAL.has(name) ? true : undefined);
+            agentMessages.push({ role: 'tool', content: JSON.stringify(result) });
           }
-          resolveStep(step, result, NEEDS_APPROVAL.has(name) ? true : undefined);
-          agentMessages.push({ role: 'tool', content: JSON.stringify(result) });
         }
       }
       // continue loop
