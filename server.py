@@ -242,7 +242,20 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/ping":
+        if self.path in ("/", "/index.html"):
+            html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+            try:
+                with open(html_path, encoding="utf-8") as f:
+                    body = f.read().encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", len(body))
+                self._cors_headers()
+                self.end_headers()
+                self.wfile.write(body)
+            except FileNotFoundError:
+                self._send_json({"error": "index.html が見つかりません"}, 404)
+        elif self.path == "/ping":
             self._send_json({"ok": True, "workdir": WORKING_DIR})
         else:
             self._send_json({"error": "not found"}, 404)
