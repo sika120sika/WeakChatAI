@@ -1724,6 +1724,29 @@ async function runAgent(userText) {
     }
   } catch {}
 
+  // ── メッセージ内のファイル名を事前に find_files で検索して注入 ──────────
+  const FILE_EXTS = /\.(cs|gd|py|js|ts|jsx|tsx|json|yaml|yml|cfg|ini|tscn|tres|sh|md|toml|xml|html|css|cpp|c|h|rs|go|java|kt|rb|php)$/i;
+  const mentioned = [...new Set(
+    (userText.match(/\b[\w\-]+\.[a-zA-Z]{1,6}\b/g) || []).filter(f => FILE_EXTS.test(f))
+  )].slice(0, 4);
+
+  if (mentioned.length > 0) {
+    const searchLines = [];
+    for (const fname of mentioned) {
+      try {
+        const r = await callServer('find_files', { pattern: `*${fname}*` });
+        if (r.files?.length > 0) {
+          searchLines.push(`「${fname}」→ ${r.files.slice(0, 8).join(', ')}`);
+        } else if (!r.error) {
+          searchLines.push(`「${fname}」→ 見つかりませんでした`);
+        }
+      } catch {}
+    }
+    if (searchLines.length > 0) {
+      treeSection += `\n\n【事前ファイル検索結果（自動実行済み）】\n${searchLines.join('\n')}\n上記パスを read_file で使用してください。`;
+    }
+  }
+
   const agentMessages = [{ role: 'system', content: AGENT_SYSPROMPT + treeSection }, ...history];
 
   for (let iter = 0; iter < MAX_AGENT_ITERATIONS; iter++) {
