@@ -59,14 +59,14 @@ CSS フレームワーク・ビルドツール・Node.js は一切不使用。
 - [x] コンテキストメーター（累積トークンカウント・使用量バー・80% 超で警告・AI 要約圧縮）
 - [x] エージェントモード（read_file / write_file / list_dir / run_command / search_content / find_files / get_tree）
 - [x] エージェント起動時のプロジェクトツリー自動注入
+- [x] レスポンス再生成ボタン（最後の AI 回答をやり直す・通常チャットのみ）
+- [x] チャット履歴エクスポート（Markdown / JSON・サイドバー下部から）
+- [x] モデルパラメータ調整 UI（temperature / top_p / repeat_penalty / num_predict・スライダー・localStorage 保存）
+- [x] クリップボード取り込みボタン（入力欄右の 📋 ボタン）
 
 ## 高機能化アイデア（優先度順）
 
 ### 小規模（すぐ実装できる）
-- [ ] レスポンス再生成ボタン（最後の AI 回答をやり直す）
-- [ ] チャット履歴エクスポート（Markdown / JSON）
-- [ ] モデルパラメータ調整 UI（temperature, top_p, repeat_penalty など）
-- [ ] クリップボード取り込みボタン（クリップボードの内容をそのまま入力欄へ）
 - [ ] ショートカットキーのカスタマイズ
 
 ### 中規模（エージェント拡張）

@@ -659,6 +659,95 @@
     }
     .sess-item:hover .sess-del { color: var(--text2); }
     .sess-del:hover { background: #3a1818; color: var(--red) !important; }
+
+    /* ── Clipboard button ── */
+    #clipboard-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 0 12px;
+      border-radius: 9px;
+      height: 40px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    #clipboard-btn:hover { background: #383838; color: var(--text); border-color: #505050; }
+
+    /* ── Regenerate button ── */
+    .regen-btn {
+      display: block;
+      margin-top: 6px;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 2px 9px;
+      border-radius: 5px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .message.assistant:hover .regen-btn { opacity: 1; }
+    .regen-btn:hover { background: var(--bg3); color: var(--text); }
+
+    /* ── Session export footer ── */
+    .sess-footer {
+      padding: 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .sess-export-btn {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 5px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sess-export-btn:hover { background: #383838; color: var(--text); }
+
+    /* ── Model params panel ── */
+    #params-panel {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      flex-shrink: 0;
+      display: none;
+    }
+    #params-panel.open { display: block; }
+    .params-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px 24px;
+      margin-bottom: 8px;
+    }
+    .param-row label {
+      font-size: 0.76rem;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
+    .param-val { color: var(--accent); font-family: Consolas, monospace; font-size: 0.78rem; }
+    .param-row input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+    #params-reset {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 3px 10px;
+      border-radius: 5px;
+      font-size: 0.76rem;
+      cursor: pointer;
+    }
+    #params-reset:hover { background: var(--bg3); color: var(--text); }
   </style>
 </head>
 <body>
@@ -668,6 +757,7 @@
   <button class="hdr-btn" id="history-btn">📚 履歴</button>
   <select id="model-select"><option>読み込み中...</option></select>
   <button class="hdr-btn" id="sysprompt-btn">システムプロンプト</button>
+  <button class="hdr-btn" id="params-btn">⚙️ パラメータ</button>
   <button class="hdr-btn" id="dl-btn">📥 モデルDL</button>
   <button class="hdr-btn" id="agent-toggle">🤖 エージェント</button>
   <div class="hdr-sep"></div>
@@ -689,6 +779,29 @@
   <textarea id="sysprompt-textarea"></textarea>
 </div>
 
+<!-- Model params panel -->
+<div id="params-panel">
+  <div class="params-grid">
+    <div class="param-row">
+      <label>temperature <span class="param-val" id="temp-val">0.70</span></label>
+      <input type="range" id="temp-slider" min="0" max="2" step="0.05" value="0.7">
+    </div>
+    <div class="param-row">
+      <label>top_p <span class="param-val" id="topp-val">0.90</span></label>
+      <input type="range" id="topp-slider" min="0" max="1" step="0.05" value="0.9">
+    </div>
+    <div class="param-row">
+      <label>repeat_penalty <span class="param-val" id="rep-val">1.10</span></label>
+      <input type="range" id="rep-slider" min="1" max="2" step="0.05" value="1.1">
+    </div>
+    <div class="param-row">
+      <label>num_predict <span class="param-val" id="pred-val">∞ (無制限)</span></label>
+      <input type="range" id="pred-slider" min="0" max="4096" step="256" value="0">
+    </div>
+  </div>
+  <button id="params-reset">↺ デフォルトに戻す</button>
+</div>
+
 <!-- Agent panel -->
 <div id="agent-panel">
   <label>📁 作業ディレクトリ:</label>
@@ -705,6 +818,10 @@
     <button id="new-sess-btn">＋ 新規</button>
   </div>
   <div id="session-list"></div>
+  <div class="sess-footer">
+    <button class="sess-export-btn" id="export-md-btn">⬇ MD</button>
+    <button class="sess-export-btn" id="export-json-btn">⬇ JSON</button>
+  </div>
 </div>
 
 <!-- Download modal -->
@@ -729,6 +846,7 @@
   <div id="input-wrapper">
     <div class="drop-hint">📄 ファイルをドロップ</div>
     <textarea id="user-input" placeholder="コードや質問を入力… (Enter 送信 / Shift+Enter 改行)" rows="1"></textarea>
+    <button id="clipboard-btn" title="クリップボードから貼り付け">📋</button>
     <button id="send-btn">➤</button>
   </div>
   <div id="input-hint">Enter で送信 · Shift+Enter で改行 · ファイルをドロップでコード添付</div>
@@ -906,6 +1024,10 @@ let agentWorkDir     = '';
 let currentSessionId = null;
 const pendingApprovals = new Set();
 
+const DEFAULT_PARAMS = { temperature: 0.7, top_p: 0.9, repeat_penalty: 1.1, num_predict: -1 };
+let modelParams = { ...DEFAULT_PARAMS };
+try { Object.assign(modelParams, JSON.parse(localStorage.getItem('codechat_params') || '{}')); } catch {}
+
 const chatEl        = document.getElementById('chat-container');
 const selectEl      = document.getElementById('model-select');
 const inputEl       = document.getElementById('user-input');
@@ -1043,6 +1165,12 @@ function buildPrompt() {
   return lines.join('\n') + '\nAssistant:';
 }
 
+function getApiOptions() {
+  const opts = { num_ctx: modelCtxLimit, ...modelParams };
+  if (opts.num_predict === -1) delete opts.num_predict;
+  return opts;
+}
+
 // ── Multi-session management ────────────────────────────────
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function getSessions() { try { return JSON.parse(localStorage.getItem('codechat_sessions') || '[]'); } catch { return []; } }
@@ -1094,6 +1222,7 @@ function switchSession(id) {
   try { const raw = localStorage.getItem('codechat_session_' + id); if (raw) history = JSON.parse(raw); } catch {}
   chatEl.innerHTML = history.length ? '' : EMPTY_STATE_HTML;
   history.forEach(m => appendMessage(m.role, m.content));
+  addRegenToLast();
   renderSessionList();
   closeSidebar();
   updateContextMeter(0);
@@ -1164,16 +1293,12 @@ function initSessions() {
       if (raw) { history = JSON.parse(raw); history.forEach(m => appendMessage(m.role, m.content)); }
     } catch {}
     if (history.length === 0) chatEl.innerHTML = EMPTY_STATE_HTML;
+    addRegenToLast();
   }
 }
 
 // ── Regular chat ────────────────────────────────────────────
-async function sendChat(text) {
-  appendMessage('user', text);
-  history.push({ role: 'user', content: text });
-  saveSession();
-
-  const bubble = appendLoading();
+async function _fetchAndStream(bubble) {
   let accumulated = '';
   let firstChunk  = true;
 
@@ -1181,7 +1306,7 @@ async function sendChat(text) {
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: selectEl.value, messages: buildMessages(), stream: true, options: { num_ctx: modelCtxLimit } })
+      body: JSON.stringify({ model: selectEl.value, messages: buildMessages(), stream: true, options: getApiOptions() })
     });
     if (res.status === 404) throw Object.assign(new Error('no_chat'), { is404: true });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1191,44 +1316,96 @@ async function sendChat(text) {
     const res = await fetch(`${API_BASE}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: selectEl.value, prompt: buildPrompt(), stream: true, options: { num_ctx: modelCtxLimit } })
+      body: JSON.stringify({ model: selectEl.value, prompt: buildPrompt(), stream: true, options: getApiOptions() })
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res;
   };
 
-  try {
-    let res, useChat = true;
-    try { res = await tryChat(); }
-    catch (e) { if (e.is404) { res = await tryGenerate(); useChat = false; } else throw e; }
+  let res, useChat = true;
+  try { res = await tryChat(); }
+  catch (e) { if (e.is404) { res = await tryGenerate(); useChat = false; } else throw e; }
 
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    let leftover  = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      leftover += decoder.decode(value, { stream: true });
-      const lines = leftover.split('\n');
-      leftover = lines.pop();
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let json;
-        try { json = JSON.parse(line); } catch { continue; }
-        const chunk = useChat ? (json.message?.content ?? '') : (json.response ?? '');
-        if (chunk) {
-          if (firstChunk) { bubble.innerHTML = ''; firstChunk = false; }
-          accumulated += chunk;
-          updateBubble(bubble, accumulated);
-        }
-        if (json.done) {
-          cumulativeContextTokens += (json.prompt_eval_count || 0) + (json.eval_count || 0);
-          updateContextMeter();
-        }
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let leftover  = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    leftover += decoder.decode(value, { stream: true });
+    const lines = leftover.split('\n');
+    leftover = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let json;
+      try { json = JSON.parse(line); } catch { continue; }
+      const chunk = useChat ? (json.message?.content ?? '') : (json.response ?? '');
+      if (chunk) {
+        if (firstChunk) { bubble.innerHTML = ''; firstChunk = false; }
+        accumulated += chunk;
+        updateBubble(bubble, accumulated);
+      }
+      if (json.done) {
+        cumulativeContextTokens += (json.prompt_eval_count || 0) + (json.eval_count || 0);
+        updateContextMeter();
       }
     }
+  }
+  return accumulated;
+}
+
+function addRegenButton(bubble) {
+  if (bubble.querySelector('.regen-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'regen-btn';
+  btn.textContent = '🔄 再生成';
+  btn.onclick = regenerate;
+  bubble.appendChild(btn);
+}
+
+function addRegenToLast() {
+  if (!history.length || history[history.length - 1].role !== 'assistant') return;
+  const bubbles = chatEl.querySelectorAll('.message.assistant .bubble');
+  const last = bubbles[bubbles.length - 1];
+  if (last) addRegenButton(last);
+}
+
+async function regenerate() {
+  if (generating || !history.length || history[history.length - 1].role !== 'assistant') return;
+  generating = true;
+  sendEl.disabled = true;
+
+  history.pop();
+  const rows = chatEl.querySelectorAll('.message.assistant');
+  rows[rows.length - 1]?.remove();
+
+  const bubble = appendLoading();
+  try {
+    const accumulated = await _fetchAndStream(bubble);
     history.push({ role: 'assistant', content: accumulated });
     saveSession();
+    addRegenButton(bubble);
+  } catch (err) {
+    bubble.innerHTML = `<span style="color:var(--red)">⚠ エラー: ${err.message}</span>`;
+  } finally {
+    document.getElementById('loading-row')?.removeAttribute('id');
+    generating = false;
+    sendEl.disabled = false;
+    inputEl.focus();
+  }
+}
+
+async function sendChat(text) {
+  appendMessage('user', text);
+  history.push({ role: 'user', content: text });
+  saveSession();
+
+  const bubble = appendLoading();
+  try {
+    const accumulated = await _fetchAndStream(bubble);
+    history.push({ role: 'assistant', content: accumulated });
+    saveSession();
+    addRegenButton(bubble);
   } catch (err) {
     bubble.innerHTML = `<span style="color:var(--red)">⚠ エラー: ${err.message}</span>`;
     history.pop();
@@ -1480,7 +1657,7 @@ async function runAgent(userText) {
           messages: agentMessages,
           tools: AGENT_TOOLS,
           stream: false,
-          options: { num_ctx: modelCtxLimit }
+          options: getApiOptions()
         })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2034,6 +2211,101 @@ selectEl.addEventListener('change', () => fetchModelCtxLimit(selectEl.value));
 historyBtnEl.addEventListener('click', () => sessionsSidebar.classList.contains('open') ? closeSidebar() : openSidebar());
 sessionsOverlay.addEventListener('click', closeSidebar);
 newSessBtnEl.addEventListener('click', () => { const id = createNewSession(); switchSession(id); });
+
+// ── Clipboard button ────────────────────────────────────────
+document.getElementById('clipboard-btn').addEventListener('click', async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) return;
+    const sep = inputEl.value ? '\n' : '';
+    inputEl.value += sep + text;
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+    inputEl.focus();
+  } catch {
+    alert('クリップボードへのアクセスが拒否されました。ブラウザの設定で許可してください。');
+  }
+});
+
+// ── Model params panel ──────────────────────────────────────
+const paramsBtnEl   = document.getElementById('params-btn');
+const paramsPanelEl = document.getElementById('params-panel');
+
+function saveParams() { localStorage.setItem('codechat_params', JSON.stringify(modelParams)); }
+
+function syncParams() {
+  document.getElementById('temp-slider').value    = modelParams.temperature;
+  document.getElementById('temp-val').textContent  = modelParams.temperature.toFixed(2);
+  document.getElementById('topp-slider').value    = modelParams.top_p;
+  document.getElementById('topp-val').textContent  = modelParams.top_p.toFixed(2);
+  document.getElementById('rep-slider').value     = modelParams.repeat_penalty;
+  document.getElementById('rep-val').textContent   = modelParams.repeat_penalty.toFixed(2);
+  const predVal = modelParams.num_predict <= 0 ? 0 : modelParams.num_predict;
+  document.getElementById('pred-slider').value    = predVal;
+  document.getElementById('pred-val').textContent  = predVal === 0 ? '∞ (無制限)' : String(predVal);
+}
+syncParams();
+
+document.getElementById('temp-slider').addEventListener('input', e => {
+  modelParams.temperature = parseFloat(e.target.value);
+  document.getElementById('temp-val').textContent = modelParams.temperature.toFixed(2);
+  saveParams();
+});
+document.getElementById('topp-slider').addEventListener('input', e => {
+  modelParams.top_p = parseFloat(e.target.value);
+  document.getElementById('topp-val').textContent = modelParams.top_p.toFixed(2);
+  saveParams();
+});
+document.getElementById('rep-slider').addEventListener('input', e => {
+  modelParams.repeat_penalty = parseFloat(e.target.value);
+  document.getElementById('rep-val').textContent = modelParams.repeat_penalty.toFixed(2);
+  saveParams();
+});
+document.getElementById('pred-slider').addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  modelParams.num_predict = v === 0 ? -1 : v;
+  document.getElementById('pred-val').textContent = v === 0 ? '∞ (無制限)' : String(v);
+  saveParams();
+});
+document.getElementById('params-reset').addEventListener('click', () => {
+  modelParams = { ...DEFAULT_PARAMS };
+  saveParams();
+  syncParams();
+});
+paramsBtnEl.addEventListener('click', () => {
+  paramsPanelEl.classList.toggle('open');
+  paramsBtnEl.classList.toggle('active');
+});
+
+// ── Session export ──────────────────────────────────────────
+function exportSession(format) {
+  if (!history.length) { alert('エクスポートできる会話がありません'); return; }
+  const sess  = getSessions().find(s => s.id === currentSessionId);
+  const title = sess?.title || 'chat';
+  const safe  = title.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 40) || 'chat';
+  const date  = new Date().toISOString().slice(0, 10);
+
+  let content, ext;
+  if (format === 'json') {
+    content = JSON.stringify(history, null, 2);
+    ext = 'json';
+  } else {
+    content = `# ${title}\n\n`
+      + history.map(m => `## ${m.role === 'user' ? 'ユーザー' : 'AI'}\n\n${m.content}`)
+        .join('\n\n---\n\n');
+    ext = 'md';
+  }
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `${safe}_${date}.${ext}`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+document.getElementById('export-md-btn').addEventListener('click', () => exportSession('md'));
+document.getElementById('export-json-btn').addEventListener('click', () => exportSession('json'));
 
 // ── Init ────────────────────────────────────────────────────
 initSessions();
