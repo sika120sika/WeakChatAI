@@ -1780,7 +1780,7 @@ async function runAgent(userText) {
         try {
           const rc = await callServer('read_file', { path: target });
           if (rc.content) {
-            const CHAR_LIMIT = 15000;
+            const CHAR_LIMIT = 50000;
             const lines = rc.content.split('\n');
             const totalLines = lines.length;
             let preview = rc.content;
