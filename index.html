@@ -1758,10 +1758,25 @@ async function runAgent(userText) {
         try {
           const rc = await callServer('read_file', { path: r.files[0] });
           if (rc.content) {
+            const CHAR_LIMIT = 15000;
             const lines = rc.content.split('\n');
-            const preview = lines.slice(0, 120).join('\n');
-            treeSection += `\n\n=== ${r.files[0]} (${rc.chars}文字) ===\n${preview}${lines.length > 120 ? '\n...(120行以降省略)' : ''}`;
-            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字`);
+            const totalLines = lines.length;
+            let preview = rc.content;
+            let truncated = false;
+            if (rc.content.length > CHAR_LIMIT) {
+              preview = rc.content.slice(0, CHAR_LIMIT);
+              // 行途中で切らない
+              const lastNl = preview.lastIndexOf('\n');
+              if (lastNl > 0) preview = preview.slice(0, lastNl);
+              truncated = true;
+            }
+            const shownLines = preview.split('\n').length;
+            const header = `=== ${r.files[0]} (全${totalLines}行・${rc.chars.toLocaleString()}文字) ===`;
+            const footer = truncated
+              ? `\n...(${shownLines}行まで表示。残り${totalLines - shownLines}行は省略。続きを読むには read_file を使用してください)`
+              : '';
+            treeSection += `\n\n${header}\n${preview}${footer}`;
+            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字 / ${totalLines}行${truncated ? ` (先頭${shownLines}行を注入)` : ''}`);
           }
         } catch { resolveAutoStep(readStep, 'エラー', true); }
       } else if (!r.error) {
