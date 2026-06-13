@@ -829,6 +829,7 @@
   <button class="hdr-btn" id="sysprompt-btn">システムプロンプト</button>
   <button class="hdr-btn" id="params-btn">⚙️ パラメータ</button>
   <button class="hdr-btn" id="dl-btn">📥 モデルDL</button>
+  <button class="hdr-btn" id="no-think-toggle" title="Qwen3 の思考モードを無効化（/no_think）">💭 思考OFF</button>
   <button class="hdr-btn" id="agent-toggle">🤖 エージェント</button>
   <div class="hdr-sep"></div>
   <div id="ctx-meter" title="コンテキスト使用量">
@@ -1093,6 +1094,7 @@ let generating       = false;
 let installedModels  = new Set();
 let agentMode        = false;
 let agentWorkDir     = '';
+let noThinkMode      = localStorage.getItem('codechat_no_think') === 'true';
 let currentSessionId = null;
 const pendingApprovals = new Set();
 
@@ -1265,15 +1267,30 @@ function appendLoading() {
   return bub;
 }
 
+function applyNoThink(messages) {
+  if (!noThinkMode || !messages.length) return messages;
+  const msgs = messages.map(m => ({ ...m }));
+  // 末尾のユーザーメッセージ先頭に /no_think を挿入
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].role === 'user') {
+      msgs[i].content = '/no_think\n' + msgs[i].content;
+      break;
+    }
+  }
+  return msgs;
+}
+
 function buildMessages() {
   const sys = sysTextEl.value.trim();
-  return sys ? [{ role: 'system', content: sys }, ...history] : [...history];
+  const msgs = sys ? [{ role: 'system', content: sys }, ...history] : [...history];
+  return applyNoThink(msgs);
 }
 
 function buildPrompt() {
   const sys = sysTextEl.value.trim();
   const lines = sys ? [`System: ${sys}`] : [];
-  history.forEach(m => lines.push((m.role === 'user' ? 'User' : 'Assistant') + ': ' + m.content));
+  const msgs = applyNoThink([...history]);
+  msgs.forEach(m => lines.push((m.role === 'user' ? 'User' : 'Assistant') + ': ' + m.content));
   return lines.join('\n') + '\nAssistant:';
 }
 
@@ -1974,6 +1991,25 @@ async function sendMessage() {
     inputEl.focus();
   }
 }
+
+// ── No-think toggle ─────────────────────────────────────────
+const noThinkToggleEl = document.getElementById('no-think-toggle');
+function updateNoThinkBtn() {
+  if (noThinkMode) {
+    noThinkToggleEl.classList.add('active');
+    noThinkToggleEl.textContent = '💭 思考OFF (ON)';
+  } else {
+    noThinkToggleEl.classList.remove('active');
+    noThinkToggleEl.textContent = '💭 思考OFF';
+  }
+}
+updateNoThinkBtn();
+noThinkToggleEl.addEventListener('click', () => {
+  noThinkMode = !noThinkMode;
+  localStorage.setItem('codechat_no_think', noThinkMode);
+  updateNoThinkBtn();
+  showToast(noThinkMode ? '思考モード無効化 (/no_think)' : '思考モード有効', 'info', 2000);
+});
 
 // ── Agent toggle ────────────────────────────────────────────
 agentToggleEl.addEventListener('click', async () => {
