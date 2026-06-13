@@ -694,6 +694,41 @@
     .message.assistant:hover .bubble-copy-btn { opacity: 1; }
     .regen-btn:hover, .bubble-copy-btn:hover { background: var(--bg3); color: var(--text); }
 
+    /* ── Think block (Qwen3 thinking mode) ── */
+    .think-block {
+      margin: 4px 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #1c1c1c;
+      font-size: 0.82rem;
+    }
+    .think-block summary {
+      padding: 5px 10px;
+      cursor: pointer;
+      color: var(--text2);
+      user-select: none;
+      list-style: none;
+    }
+    .think-block summary::before { content: '▶ '; font-size: 0.7rem; }
+    .think-block[open] summary::before { content: '▼ '; }
+    .think-block summary:hover { color: var(--text); }
+    .think-content {
+      padding: 8px 12px;
+      color: var(--text2);
+      border-top: 1px solid var(--border);
+      line-height: 1.55;
+    }
+    .think-content p { margin: .3em 0; }
+    .think-streaming {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--text2);
+      padding: 4px 0 6px;
+      font-style: italic;
+    }
+
     /* ── Toast notifications ── */
     #toast-container {
       position: fixed;
@@ -911,6 +946,7 @@ const QUICK_ACTIONS = [
 
 const RECOMMENDED_MODELS = [
   { name: 'qwen2.5-coder:7b',      size: '4.7 GB', desc: 'コーディング特化 · 8GB VRAM 完全収容 · 最速', recommended: true },
+  { name: 'qwen3:8b',              size: '5.2 GB', desc: '最新世代 · 思考モード対応 · 128k コンテキスト · ツール呼び出し強化' },
   { name: 'deepseek-r1:8b',        size: '4.9 GB', desc: '推論特化 · 128k コンテキスト · 8GB VRAM 完全収容' },
   { name: 'qwen2.5-coder:14b',     size: '8.5 GB', desc: '高精度コーディング · 一部 RAM オフロード' },
   { name: 'deepseek-r1:14b',       size: '9.0 GB', desc: '高精度推論 · 128k コンテキスト · 一部 RAM オフロード' },
@@ -1160,10 +1196,31 @@ function addCodeUI(container) {
   });
 }
 
+function renderWithThinking(text) {
+  const OPEN  = '<think>';
+  const CLOSE = '</think>';
+  const openIdx = text.indexOf(OPEN);
+  if (openIdx === -1) return marked.parse(text);
+
+  let html = openIdx > 0 ? marked.parse(text.slice(0, openIdx)) : '';
+  const closeIdx = text.indexOf(CLOSE, openIdx);
+
+  if (closeIdx === -1) {
+    // <think> 未閉じ = まだ思考中
+    html += `<div class="think-streaming"><div class="typing"><span></span><span></span><span></span></div>💭 思考中…</div>`;
+  } else {
+    const thinkContent = text.slice(openIdx + OPEN.length, closeIdx).trim();
+    const after = text.slice(closeIdx + CLOSE.length).trimStart();
+    html += `<details class="think-block"><summary>💭 思考プロセス</summary><div class="think-content">${marked.parse(thinkContent)}</div></details>`;
+    if (after) html += marked.parse(after);
+  }
+  return html;
+}
+
 function updateBubble(el, text) {
   const regenBtn = el.querySelector('.regen-btn');
   const copyBtn  = el.querySelector('.bubble-copy-btn');
-  el.innerHTML = marked.parse(text);
+  el.innerHTML = renderWithThinking(text);
   addCodeUI(el);
   if (copyBtn)  el.appendChild(copyBtn);
   if (regenBtn) el.appendChild(regenBtn);
