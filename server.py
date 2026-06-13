@@ -17,6 +17,9 @@ WORKING_DIR = None
 def _safe_path(rel):
     if not WORKING_DIR:
         raise ValueError("作業ディレクトリが未設定です。ブラウザで設定してください。")
+    # Godot の res:// プレフィックスを除去
+    if rel.startswith("res://"):
+        rel = rel[6:]
     full = os.path.realpath(os.path.join(WORKING_DIR, rel))
     base = os.path.realpath(WORKING_DIR)
     if full != base and not full.startswith(base + os.sep):
