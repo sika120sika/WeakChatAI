@@ -1664,6 +1664,7 @@ function resolveStep(step, result, approved) {
     if      (result.chars    != null) res.textContent = `✓ ${result.chars.toLocaleString()} 文字`;
     else if (result.entries)          res.textContent = `✓ ${result.entries.length} 件`;
     else if (result.results)          res.textContent = `✓ ${result.results.length} 件マッチ`;
+    else if (result.note)             { res.textContent = `⏭ ${result.note}`; badge.textContent = 'スキップ'; badge.className = 'step-badge badge-auto'; }
     else if (result.ok)               res.textContent = `✓ 書き込み完了 (${result.bytes} bytes)`;
     else if (result.returncode != null) {
       res.textContent = `✓ 終了コード ${result.returncode}`;
@@ -1948,7 +1949,10 @@ async function runAgent(userText) {
           agentMessages.push({ role: 'tool', content: 'ユーザーがこの操作を拒否しました。別のアプローチを検討してください。' });
         } else {
           // 自動注入済みファイルへの重複 read_file をインターセプト
-          if (name === 'read_file' && args.path && alreadyRead.has(args.path)) {
+          const normPath = p => p.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+          const isAlreadyRead = name === 'read_file' && args.path &&
+            [...alreadyRead].some(p => normPath(p) === normPath(args.path));
+          if (isAlreadyRead) {
             result = { note: `このファイルはユーザーメッセージの [参照ファイル（自動取得済み）] に含まれています。そちらを参照してください。` };
             resolveStep(step, result);
             agentMessages.push({ role: 'tool', content: JSON.stringify(result) });
