@@ -1210,7 +1210,8 @@ function renderWithThinking(text) {
 
   if (closeIdx === -1) {
     // <think> 未閉じ = まだ思考中
-    html += `<div class="think-streaming"><div class="typing"><span></span><span></span><span></span></div>💭 思考中…</div>`;
+    const thinkChars = text.slice(openIdx + OPEN.length).length;
+    html += `<div class="think-streaming"><div class="typing"><span></span><span></span><span></span></div>💭 思考中… ${thinkChars.toLocaleString()} 文字</div>`;
   } else {
     const thinkContent = text.slice(openIdx + OPEN.length, closeIdx).trim();
     const after = text.slice(closeIdx + CLOSE.length).trimStart();
