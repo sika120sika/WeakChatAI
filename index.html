@@ -1647,6 +1647,83 @@ QUICK_ACTIONS.forEach(({ label, prefix }) => {
   actionBar.appendChild(btn);
 });
 
+// ── Commit message button ───────────────────────────────────
+(function () {
+  const COMMIT_PROMPT = (diff) =>
+    `以下の git diff を元に適切なコミットメッセージを提案してください。\n\n要件:\n` +
+    `- 1行目: 変更内容の件名（英語・50文字以内）\n` +
+    `- Conventional Commits 形式推奨（feat:, fix:, refactor:, docs:, chore: など）\n` +
+    `- 必要に応じて3行目以降に日本語で補足説明\n\n\`\`\`diff\n${diff}\n\`\`\``;
+
+  const FALLBACK_PROMPT =
+    `git diff の結果を以下に貼り付けてください。コミットメッセージを提案します:\n\n\`\`\`diff\n\n\`\`\``;
+
+  const btn = document.createElement('button');
+  btn.className = 'action-btn';
+  btn.textContent = '📝 コミットメッセージ';
+
+  btn.onclick = async () => {
+    if (generating) return;
+    btn.disabled = true;
+    btn.textContent = '⏳ diff 取得中...';
+
+    let diff = '';
+    let serverAvailable = false;
+    try {
+      // staged + unstaged を両方カバーする git diff HEAD を優先
+      const r1 = await fetch(`${SERVER_BASE}/tool/run_command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: 'git diff HEAD' })
+      });
+      const d1 = await r1.json();
+      serverAvailable = true;
+      if (d1.stdout?.trim()) {
+        diff = d1.stdout;
+      } else if (!d1.error) {
+        // 初回コミット前など HEAD がない場合は staged のみ試行
+        const r2 = await fetch(`${SERVER_BASE}/tool/run_command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: 'git diff --staged' })
+        });
+        const d2 = await r2.json();
+        if (d2.stdout?.trim()) diff = d2.stdout;
+      }
+    } catch { /* server.py 未起動 → フォールバックへ */ }
+
+    btn.disabled = false;
+    btn.textContent = '📝 コミットメッセージ';
+
+    if (serverAvailable && !diff) {
+      inputEl.value = '変更が見つかりません。git add でファイルをステージングするか、ファイルを編集してください。';
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+      inputEl.focus();
+      return;
+    }
+
+    const MAX_DIFF = 6000;
+    if (diff.length > MAX_DIFF) diff = diff.slice(0, MAX_DIFF) + '\n…（diff が長すぎるため省略）';
+
+    if (diff) {
+      inputEl.value = COMMIT_PROMPT(diff);
+      sendMessage();
+    } else {
+      // server.py なし → テンプレートを挿入して手動貼り付けを促す
+      inputEl.value = FALLBACK_PROMPT;
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+      inputEl.focus();
+      // カーソルを ``` の中に移動
+      const pos = inputEl.value.indexOf('\n```diff\n') + 9;
+      inputEl.setSelectionRange(pos, pos);
+    }
+  };
+
+  actionBar.appendChild(btn);
+})();
+
 // ── File drag & drop ────────────────────────────────────────
 wrapperEl.addEventListener('dragover', e => { e.preventDefault(); wrapperEl.classList.add('drag-over'); });
 wrapperEl.addEventListener('dragleave', e => { if (!wrapperEl.contains(e.relatedTarget)) wrapperEl.classList.remove('drag-over'); });
