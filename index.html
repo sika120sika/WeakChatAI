@@ -869,6 +869,11 @@
       <label>最大出力トークン数 (num_predict) <span class="param-val" id="pred-val">∞ (無制限)</span></label>
       <input type="range" id="pred-slider" min="0" max="4096" step="256" value="0">
     </div>
+    <div class="param-row">
+      <label>作業机サイズ (num_ctx) <span class="param-val" id="ctx-val">自動</span></label>
+      <input type="range" id="ctx-slider" min="0" max="32768" step="2048" value="0">
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:2px">0=モデル最大値 · Qwen3/遅い場合は 8192 推奨</div>
+    </div>
   </div>
   <button id="params-reset">↺ デフォルトに戻す</button>
 </div>
@@ -1098,7 +1103,7 @@ let noThinkMode      = localStorage.getItem('codechat_no_think') === 'true';
 let currentSessionId = null;
 const pendingApprovals = new Set();
 
-const DEFAULT_PARAMS = { temperature: 0.7, top_p: 0.9, repeat_penalty: 1.1, num_predict: -1 };
+const DEFAULT_PARAMS = { temperature: 0.7, top_p: 0.9, repeat_penalty: 1.1, num_predict: -1, ctx_limit: 0 };
 let modelParams = { ...DEFAULT_PARAMS };
 try { Object.assign(modelParams, JSON.parse(localStorage.getItem('codechat_params') || '{}')); } catch {}
 
@@ -1295,8 +1300,13 @@ function buildPrompt() {
   return lines.join('\n') + '\nAssistant:';
 }
 
+function effectiveCtxLimit() {
+  return modelParams.ctx_limit > 0 ? modelParams.ctx_limit : modelCtxLimit;
+}
+
 function getApiOptions() {
-  const opts = { num_ctx: modelCtxLimit, ...modelParams };
+  const { ctx_limit, ...params } = modelParams;
+  const opts = { num_ctx: effectiveCtxLimit(), ...params };
   if (opts.num_predict === -1) delete opts.num_predict;
   return opts;
 }
@@ -2441,11 +2451,12 @@ async function fetchModelCtxLimit(modelName) {
 
 function updateContextMeter(tokens) {
   if (tokens !== undefined) cumulativeContextTokens = tokens;
-  const pct = modelCtxLimit > 0 ? (cumulativeContextTokens / modelCtxLimit * 100) : 0;
+  const limit = effectiveCtxLimit();
+  const pct = limit > 0 ? (cumulativeContextTokens / limit * 100) : 0;
 
   ctxBar.style.width      = Math.min(pct, 100) + '%';
   ctxBar.style.background = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--yellow)' : 'var(--green)';
-  ctxLabel.textContent    = `${cumulativeContextTokens.toLocaleString()} / ${(modelCtxLimit/1000).toFixed(0)}k`;
+  ctxLabel.textContent    = `${cumulativeContextTokens.toLocaleString()} / ${(limit/1000).toFixed(0)}k`;
 
   if (pct >= 80) {
     ctxWarnText.textContent = pct >= 90
@@ -2540,6 +2551,9 @@ function syncParams() {
   const predVal = modelParams.num_predict <= 0 ? 0 : modelParams.num_predict;
   document.getElementById('pred-slider').value    = predVal;
   document.getElementById('pred-val').textContent  = predVal === 0 ? '∞ (無制限)' : String(predVal);
+  const ctxVal = modelParams.ctx_limit || 0;
+  document.getElementById('ctx-slider').value     = ctxVal;
+  document.getElementById('ctx-val').textContent  = ctxVal === 0 ? '自動' : `${ctxVal.toLocaleString()} トークン`;
 }
 syncParams();
 
@@ -2563,6 +2577,13 @@ document.getElementById('pred-slider').addEventListener('input', e => {
   modelParams.num_predict = v === 0 ? -1 : v;
   document.getElementById('pred-val').textContent = v === 0 ? '∞ (無制限)' : String(v);
   saveParams();
+});
+document.getElementById('ctx-slider').addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  modelParams.ctx_limit = v;
+  document.getElementById('ctx-val').textContent = v === 0 ? '自動' : `${v.toLocaleString()} トークン`;
+  saveParams();
+  updateContextMeter();
 });
 document.getElementById('params-reset').addEventListener('click', () => {
   modelParams = { ...DEFAULT_PARAMS };
