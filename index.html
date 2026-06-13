@@ -1,0 +1,1978 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>CodeChat — Ollama</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #1a1a1a;
+      --bg2:     #232323;
+      --bg3:     #2d2d2d;
+      --border:  #383838;
+      --text:    #e8e8e8;
+      --text2:   #909090;
+      --accent:  #5c8ce8;
+      --accent2: #4a7cd6;
+      --green:   #3fb950;
+      --red:     #f87171;
+      --yellow:  #fbbf24;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1rem; font-weight: 700; white-space: nowrap; }
+
+    #model-select {
+      background: var(--bg3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.83rem;
+      cursor: pointer;
+      outline: none;
+      min-width: 155px;
+    }
+    #model-select:focus { border-color: var(--accent); }
+
+    .hdr-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .hdr-btn:hover  { background: #383838; color: var(--text); }
+    .hdr-btn.active { border-color: var(--accent); color: var(--accent); }
+    .hdr-btn.active-agent { border-color: var(--green); color: var(--green); }
+
+    .hdr-sep { flex: 1; }
+
+    /* ── System prompt panel ── */
+    #sysprompt-panel {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      flex-shrink: 0;
+      display: none;
+    }
+    #sysprompt-panel.open { display: block; }
+    #sysprompt-panel label { font-size: 0.76rem; color: var(--text2); display: block; margin-bottom: 5px; }
+    #sysprompt-textarea {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.83rem;
+      font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+      resize: vertical;
+      min-height: 72px;
+      outline: none;
+      line-height: 1.5;
+    }
+    #sysprompt-textarea:focus { border-color: var(--accent); }
+
+    /* ── Agent panel ── */
+    #agent-panel {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 7px 16px;
+      flex-shrink: 0;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #agent-panel.open { display: flex; }
+    #agent-panel label { font-size: 0.8rem; color: var(--text2); white-space: nowrap; }
+    #workdir-input {
+      flex: 1;
+      min-width: 200px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-family: 'Cascadia Code', Consolas, monospace;
+      outline: none;
+    }
+    #workdir-input:focus { border-color: var(--accent); }
+    #workdir-set {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #workdir-set:hover { background: var(--accent2); }
+    #workdir-status { font-size: 0.78rem; color: var(--text2); }
+
+    /* ── Download modal ── */
+    #dl-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #dl-overlay.open { display: flex; }
+    #dl-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 520px;
+      max-height: 78vh;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    #dl-panel::-webkit-scrollbar { width: 5px; }
+    #dl-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    #dl-panel h2 {
+      font-size: 0.97rem;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #dl-close { background: none; border: none; color: var(--text2); font-size: 1.1rem; cursor: pointer; }
+    #dl-close:hover { color: var(--text); }
+    .model-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 9px;
+    }
+    .mc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+    .mc-name { font-size: 0.88rem; font-weight: 600; font-family: Consolas, monospace; }
+    .mc-size { font-size: 0.78rem; color: var(--text2); margin-left: auto; }
+    .badge { font-size: 0.7rem; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+    .badge-rec  { background: #1a3a2a; color: var(--green);  border: 1px solid var(--green); }
+    .badge-inst { background: #1a2a3a; color: var(--accent); border: 1px solid var(--accent); }
+    .mc-desc { font-size: 0.8rem; color: var(--text2); margin-bottom: 10px; }
+    .mc-bottom { display: flex; align-items: center; gap: 10px; }
+    .dl-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 5px 13px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dl-btn:hover:not(:disabled) { background: var(--accent2); }
+    .dl-btn:disabled { background: #3a3a3a; color: #555; cursor: default; }
+    .dl-btn.use-btn { background: transparent; color: var(--green); border: 1px solid var(--green); }
+    .dl-btn.use-btn:hover:not(:disabled) { background: #1a3a2a; }
+    .dl-btn.del-btn { background: transparent; color: var(--red); border: 1px solid #5a2a2a; }
+    .dl-btn.del-btn:hover:not(:disabled) { background: #2a1010; border-color: var(--red); }
+    .prog-wrap  { flex: 1; height: 5px; background: #3a3a3a; border-radius: 3px; overflow: hidden; }
+    .prog-bar   { height: 100%; background: var(--accent); border-radius: 3px; width: 0%; transition: width 0.25s; }
+    .prog-label { font-size: 0.73rem; color: var(--text2); white-space: nowrap; }
+
+    /* ── Chat ── */
+    #chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    #chat-container::-webkit-scrollbar { width: 5px; }
+    #chat-container::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+    #empty-state {
+      margin: auto;
+      text-align: center;
+      color: #505050;
+      user-select: none;
+    }
+    #empty-state .logo { font-size: 2.2rem; margin-bottom: 8px; }
+    #empty-state h2 { font-size: 1.1rem; color: #606060; margin-bottom: 4px; }
+    #empty-state p  { font-size: 0.83rem; }
+
+    /* ── Messages ── */
+    .message { display: flex; align-items: flex-start; gap: 9px; max-width: 860px; width: 100%; }
+    .message.user      { align-self: flex-end;   flex-direction: row-reverse; }
+    .message.assistant { align-self: flex-start; }
+    .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      margin-top: 3px;
+    }
+    .message.assistant .avatar { background: #1a5a40; }
+    .message.user      .avatar { background: #2e2e70; }
+    .bubble {
+      padding: 9px 13px;
+      border-radius: 11px;
+      line-height: 1.65;
+      font-size: 0.9rem;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      max-width: 790px;
+    }
+    .message.user .bubble {
+      background: #222248;
+      border-bottom-right-radius: 3px;
+      white-space: pre-wrap;
+    }
+    .message.assistant .bubble {
+      background: var(--bg3);
+      border-bottom-left-radius: 3px;
+    }
+
+    /* Markdown */
+    .bubble p { margin-bottom: .6em; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble h1,.bubble h2,.bubble h3 { margin: .75em 0 .3em; line-height: 1.3; }
+    .bubble ul,.bubble ol { margin: .4em 0 .4em 1.3em; }
+    .bubble li  { margin: .15em 0; }
+    .bubble blockquote { border-left: 3px solid #505050; padding-left: 10px; color: #999; margin: .5em 0; }
+    .bubble table { border-collapse: collapse; margin: .5em 0; font-size: .86em; }
+    .bubble th,.bubble td { border: 1px solid #444; padding: 4px 9px; }
+    .bubble th  { background: #383838; }
+    .bubble a   { color: #7caaf4; text-decoration: none; }
+    .bubble a:hover { text-decoration: underline; }
+    .bubble code:not(pre code) {
+      background: #363636;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+      font-size: .84em;
+    }
+    .bubble pre {
+      margin: .55em 0;
+      border-radius: 7px;
+      overflow: hidden;
+      border: 1px solid #3e3e3e;
+    }
+    .bubble pre code {
+      font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+      font-size: .83em;
+      display: block;
+      padding: 11px 13px;
+      overflow-x: auto;
+    }
+    .code-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1c1c1c;
+      padding: 3px 10px;
+      border-bottom: 1px solid #3e3e3e;
+    }
+    .lang-label { font-size: 0.73rem; color: #777; font-family: Consolas, monospace; }
+    .copy-btn {
+      background: none;
+      border: 1px solid #484848;
+      color: #888;
+      padding: 1px 7px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .copy-btn:hover  { background: #333; color: var(--text); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    /* Typing indicator */
+    .typing { display: flex; align-items: center; gap: 5px; padding: 3px 2px; }
+    .typing span {
+      width: 7px; height: 7px;
+      background: #666;
+      border-radius: 50%;
+      animation: tbounce 1.2s infinite ease-in-out;
+    }
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .30s; }
+    @keyframes tbounce {
+      0%,60%,100% { transform: translateY(0); opacity: .35; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ── Agent steps ── */
+    .agent-steps { display: flex; flex-direction: column; gap: 7px; margin-bottom: 8px; }
+
+    .agent-step {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 11px;
+      font-size: 0.82rem;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: Consolas, monospace;
+      margin-bottom: 3px;
+    }
+    .step-name { font-weight: 600; color: var(--text); font-size: 0.85rem; }
+    .step-badge {
+      font-size: 0.68rem;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    .badge-auto     { background: #152015; color: var(--green);  border: 1px solid #2a4a2a; }
+    .badge-pending  { background: #251e10; color: var(--yellow); border: 1px solid #4a3a18; }
+    .badge-approved { background: #152015; color: var(--green);  border: 1px solid #2a4a2a; }
+    .badge-denied   { background: #201515; color: var(--red);    border: 1px solid #4a2a2a; }
+    .badge-error    { background: #201515; color: var(--red);    border: 1px solid #4a2a2a; }
+
+    .step-args {
+      color: var(--text2);
+      font-size: 0.78rem;
+      font-family: Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 3px 0;
+    }
+    .step-result { font-size: 0.78rem; color: #777; margin-top: 3px; }
+    .step-result.ok  { color: #5a9a5a; }
+    .step-result.err { color: var(--red); }
+
+    .file-preview {
+      background: #181818;
+      border: 1px solid #333;
+      border-radius: 5px;
+      padding: 5px 8px;
+      font-family: Consolas, monospace;
+      font-size: 0.77rem;
+      max-height: 110px;
+      overflow-y: auto;
+      color: #bbb;
+      margin-top: 5px;
+      white-space: pre;
+    }
+
+    /* Approval */
+    .approval-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .approval-label { font-size: 0.79rem; color: var(--yellow); flex: 1; }
+    .approve-btn {
+      background: var(--green);
+      border: none;
+      color: #000;
+      padding: 4px 13px;
+      border-radius: 6px;
+      font-size: 0.79rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .approve-btn:hover { opacity: 0.88; }
+    .deny-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 4px 13px;
+      border-radius: 6px;
+      font-size: 0.79rem;
+      cursor: pointer;
+    }
+    .deny-btn:hover { background: #3a3a3a; color: var(--text); }
+
+    .agent-answer { margin-top: 4px; }
+    .agent-limit  { font-size: 0.82rem; color: var(--yellow); margin-top: 6px; }
+
+    /* ── Quick actions ── */
+    #action-bar {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 5px 14px;
+      display: flex;
+      gap: 5px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .action-btn:hover { background: #383838; color: var(--text); border-color: #505050; }
+
+    /* ── Input ── */
+    #input-area {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      padding: 9px 14px 11px;
+      flex-shrink: 0;
+    }
+    #input-wrapper {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      position: relative;
+    }
+    .drop-hint {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(92,140,232,0.1);
+      border: 2px dashed var(--accent);
+      border-radius: 9px;
+      font-size: 0.88rem;
+      color: var(--accent);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 2;
+    }
+    #input-wrapper.drag-over .drop-hint { opacity: 1; }
+    #user-input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 9px;
+      font-size: 0.88rem;
+      font-family: inherit;
+      resize: none;
+      min-height: 40px;
+      max-height: 200px;
+      line-height: 1.55;
+      outline: none;
+      overflow-y: auto;
+      transition: border-color 0.15s;
+    }
+    #user-input::placeholder { color: #525252; }
+    #user-input:focus { border-color: var(--accent); }
+    #send-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 0 15px;
+      border-radius: 9px;
+      height: 40px;
+      font-size: 1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    #send-btn:hover:not(:disabled) { background: var(--accent2); }
+    #send-btn:disabled { background: #2e2e2e; color: #484848; cursor: default; }
+    #input-hint { text-align: center; font-size: 0.72rem; color: #484848; margin-top: 5px; }
+
+    /* ── Context meter ── */
+    #ctx-meter {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.7rem;
+      color: var(--text2);
+      cursor: default;
+    }
+    #ctx-track {
+      width: 64px;
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #ctx-bar {
+      height: 100%;
+      border-radius: 2px;
+      width: 0%;
+      background: var(--green);
+      transition: width 0.4s, background 0.4s;
+    }
+    #ctx-label { white-space: nowrap; min-width: 64px; }
+
+    /* ── Context warning banner ── */
+    #ctx-warning {
+      background: #221a08;
+      border-bottom: 1px solid #4a3a18;
+      padding: 5px 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.81rem;
+      flex-shrink: 0;
+    }
+    #ctx-warning.show { display: flex; }
+    #ctx-warn-text { color: var(--yellow); flex: 1; }
+    #ctx-compress-btn {
+      background: var(--yellow);
+      border: none;
+      color: #000;
+      padding: 3px 11px;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #ctx-compress-btn:hover:not(:disabled) { opacity: 0.85; }
+    #ctx-compress-btn:disabled { opacity: 0.5; cursor: default; }
+    #ctx-dismiss-btn {
+      background: none;
+      border: none;
+      color: var(--text2);
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+    }
+    #ctx-dismiss-btn:hover { color: var(--text); }
+
+    /* ── Sessions sidebar ── */
+    #sessions-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 199;
+      display: none;
+    }
+    #sessions-overlay.open { display: block; }
+    #sessions-sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: 260px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(-261px);
+      transition: transform 0.22s ease;
+      box-shadow: 4px 0 16px rgba(0,0,0,0.4);
+    }
+    #sessions-sidebar.open { transform: translateX(0); }
+    .sess-hdr {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .sess-hdr h3 { font-size: 0.88rem; font-weight: 700; }
+    #new-sess-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.77rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #new-sess-btn:hover { background: var(--accent2); }
+    #session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 5px;
+    }
+    #session-list::-webkit-scrollbar { width: 4px; }
+    #session-list::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+    .sess-item {
+      padding: 9px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      margin-bottom: 2px;
+      border: 1px solid transparent;
+      position: relative;
+      transition: background 0.12s;
+    }
+    .sess-item:hover { background: var(--bg3); }
+    .sess-item.active { background: #1a2a3a; border-color: var(--accent); }
+    .sess-title {
+      font-size: 0.82rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 24px;
+    }
+    .sess-meta { font-size: 0.7rem; color: var(--text2); margin-top: 2px; }
+    .sess-del {
+      position: absolute;
+      top: 50%; right: 6px;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: transparent;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 4px;
+      line-height: 1;
+      transition: color 0.1s;
+    }
+    .sess-item:hover .sess-del { color: var(--text2); }
+    .sess-del:hover { background: #3a1818; color: var(--red) !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ CodeChat</h1>
+  <button class="hdr-btn" id="history-btn">📚 履歴</button>
+  <select id="model-select"><option>読み込み中...</option></select>
+  <button class="hdr-btn" id="sysprompt-btn">システムプロンプト</button>
+  <button class="hdr-btn" id="dl-btn">📥 モデルDL</button>
+  <button class="hdr-btn" id="agent-toggle">🤖 エージェント</button>
+  <div class="hdr-sep"></div>
+  <div id="ctx-meter" title="コンテキスト使用量">
+    <div id="ctx-track"><div id="ctx-bar"></div></div>
+    <span id="ctx-label">— tokens</span>
+  </div>
+  <button class="hdr-btn" id="reset-btn">↺ リセット</button>
+</header>
+<div id="ctx-warning">
+  <span id="ctx-warn-text"></span>
+  <button id="ctx-compress-btn">要約して圧縮</button>
+  <button id="ctx-dismiss-btn">×</button>
+</div>
+
+<!-- System prompt -->
+<div id="sysprompt-panel">
+  <label>システムプロンプト（全会話に適用・自動保存）</label>
+  <textarea id="sysprompt-textarea"></textarea>
+</div>
+
+<!-- Agent panel -->
+<div id="agent-panel">
+  <label>📁 作業ディレクトリ:</label>
+  <input id="workdir-input" placeholder="C:\Users\kakus\Projects\MyApp" spellcheck="false">
+  <button id="workdir-set">設定</button>
+  <span id="workdir-status"></span>
+</div>
+
+<!-- Sessions sidebar -->
+<div id="sessions-overlay"></div>
+<div id="sessions-sidebar">
+  <div class="sess-hdr">
+    <h3>📚 会話履歴</h3>
+    <button id="new-sess-btn">＋ 新規</button>
+  </div>
+  <div id="session-list"></div>
+</div>
+
+<!-- Download modal -->
+<div id="dl-overlay">
+  <div id="dl-panel">
+    <h2>モデルのダウンロード <button id="dl-close">✕</button></h2>
+    <div id="model-cards"></div>
+  </div>
+</div>
+
+<div id="chat-container">
+  <div id="empty-state">
+    <div class="logo">⚡</div>
+    <h2>CodeChat</h2>
+    <p>コードを貼り付けてレビューを依頼、またはファイルをドロップしてください</p>
+  </div>
+</div>
+
+<div id="action-bar"></div>
+
+<div id="input-area">
+  <div id="input-wrapper">
+    <div class="drop-hint">📄 ファイルをドロップ</div>
+    <textarea id="user-input" placeholder="コードや質問を入力… (Enter 送信 / Shift+Enter 改行)" rows="1"></textarea>
+    <button id="send-btn">➤</button>
+  </div>
+  <div id="input-hint">Enter で送信 · Shift+Enter で改行 · ファイルをドロップでコード添付</div>
+</div>
+
+<script>
+const API_BASE    = 'http://localhost:11434';
+const SERVER_BASE = 'http://localhost:3000';
+const MAX_AGENT_ITERATIONS = 15;
+
+const DEFAULT_SYSPROMPT =
+`あなたはプロのソフトウェアエンジニアとして振る舞うコーディングアシスタントです。
+
+ルール:
+- コードは必ずコードブロック（\`\`\`言語名）で囲む
+- 説明は簡潔に、要点から始める
+- バグ修正の場合は原因を一言で説明してから修正コードを示す
+- 日本語で回答する`;
+
+const QUICK_ACTIONS = [
+  { label: '📋 レビュー',         prefix: '以下のコードをレビューしてください。問題点・改善点を指摘してください:\n\n' },
+  { label: '🐛 バグ修正',         prefix: '以下のコードのバグを特定して修正してください:\n\n' },
+  { label: '♻️ リファクタリング', prefix: '以下のコードをリファクタリングして可読性・保守性を向上させてください:\n\n' },
+  { label: '🧪 テスト生成',       prefix: '以下のコードのユニットテストを生成してください:\n\n' },
+  { label: '📖 解説',             prefix: '以下のコードを解説してください:\n\n' },
+];
+
+const RECOMMENDED_MODELS = [
+  { name: 'qwen2.5-coder:7b',      size: '4.7 GB', desc: 'コーディング特化 · 8GB VRAM 完全収容 · 最速', recommended: true },
+  { name: 'deepseek-r1:8b',        size: '4.9 GB', desc: '推論特化 · 128k コンテキスト · 8GB VRAM 完全収容' },
+  { name: 'qwen2.5-coder:14b',     size: '8.5 GB', desc: '高精度コーディング · 一部 RAM オフロード' },
+  { name: 'deepseek-r1:14b',       size: '9.0 GB', desc: '高精度推論 · 128k コンテキスト · 一部 RAM オフロード' },
+  { name: 'deepseek-coder-v2:16b', size: '9.5 GB', desc: '高性能コーディング · RAM オフロード必要' },
+  { name: 'codellama:13b',         size: '7.4 GB', desc: 'Meta 製 · 汎用コーディング' },
+];
+
+const EXT_LANG = {
+  js:'javascript', ts:'typescript', jsx:'javascript', tsx:'typescript',
+  py:'python', rb:'ruby', go:'go', rs:'rust', java:'java', cs:'csharp',
+  cpp:'cpp', c:'c', h:'c', html:'html', css:'css', scss:'css',
+  json:'json', yml:'yaml', yaml:'yaml', sh:'bash', bash:'bash',
+  md:'markdown', sql:'sql', kt:'kotlin', swift:'swift', php:'php',
+  dart:'dart', lua:'lua', r:'r', toml:'toml', xml:'xml',
+};
+
+// ── Ollama tool definitions ─────────────────────────────────
+const AGENT_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'read_file',
+      description: '指定されたファイルの内容を読み取ります',
+      parameters: {
+        type: 'object',
+        properties: { path: { type: 'string', description: '作業ディレクトリからの相対パス' } },
+        required: ['path']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_file',
+      description: 'ファイルを作成または上書きします（ユーザー承認が必要）',
+      parameters: {
+        type: 'object',
+        properties: {
+          path:    { type: 'string', description: '作業ディレクトリからの相対パス' },
+          content: { type: 'string', description: 'ファイルの内容' }
+        },
+        required: ['path', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_dir',
+      description: 'ディレクトリの内容を一覧表示します',
+      parameters: {
+        type: 'object',
+        properties: { path: { type: 'string', description: '相対パス（デフォルト: .）' } }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_command',
+      description: 'シェルコマンドを実行します（ユーザー承認が必要）',
+      parameters: {
+        type: 'object',
+        properties: { command: { type: 'string', description: '実行するコマンド' } },
+        required: ['command']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_content',
+      description: '作業ディレクトリ内のコードファイルからテキストを検索します',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '検索するテキスト' },
+          path:  { type: 'string', description: '検索対象ディレクトリ（デフォルト: .）' }
+        },
+        required: ['query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'find_files',
+      description: 'ファイル名パターンでプロジェクト内のファイルを検索します。例: *.py / *config* / index.*',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: 'ファイル名のパターン（例: *.py, *config*, index.*）' },
+          path:    { type: 'string', description: '検索対象ディレクトリ（デフォルト: .）' }
+        },
+        required: ['pattern']
+      }
+    }
+  }
+];
+
+const TOOL_ICONS      = { read_file:'📄', write_file:'✏️', list_dir:'📁', run_command:'▶️', search_content:'🔍', find_files:'🔎' };
+const NEEDS_APPROVAL  = new Set(['write_file', 'run_command']);
+
+// Dangerous command patterns — triggers double-confirm
+const DANGER_PATTERNS = [
+  { p: /git\s+reset\s+--hard/i,                     r: 'コミットされていない変更がすべて失われます' },
+  { p: /git\s+push\s+.*?(-f\b|--force)/i,           r: 'リモートの履歴を強制上書きします（チーム作業では致命的）' },
+  { p: /git\s+clean\s+.*?-[a-z]*f/i,               r: '追跡されていないファイルがすべて削除されます' },
+  { p: /git\s+checkout\s+--\s/i,                    r: 'ファイルの変更を破棄します' },
+  { p: /git\s+branch\s+.*?-D\b/i,                   r: 'ブランチを強制削除します（マージ未済みの変更も消えます）' },
+  { p: /git\s+rebase\b/i,                            r: 'コミット履歴が書き換えられます' },
+  { p: /git\s+commit\s+.*?--amend/i,                r: '直前のコミットを書き換えます（push 済みの場合に危険）' },
+  { p: /\brm\s+.*?(-[a-z]*r|-rf?|--recursive)/i,   r: 'ファイル・ディレクトリを再帰削除します（復元不可）' },
+  { p: /\brmdir\b/i,                                r: 'ディレクトリを削除します' },
+  { p: /\bdel\b.*\/(f|s|q)/i,                       r: 'ファイルを強制削除します（復元不可）' },
+  { p: /\brd\s+\/s\b/i,                             r: 'ディレクトリを再帰的に削除します（復元不可）' },
+  { p: /Remove-Item.*(-Recurse|-Force)/i,            r: 'ファイル・ディレクトリを強制削除します（復元不可）' },
+  { p: /\bformat\s+[a-z]:/i,                        r: 'ディスクをフォーマットします（全データ消去）' },
+  { p: /\bshutdown\s+[\/\-]/i,                      r: 'システムをシャットダウン・再起動します' },
+  { p: /\btaskkill\b.*\/f/i,                        r: 'プロセスを強制終了します' },
+  { p: /\breg\s+(delete|add)\b/i,                   r: 'Windowsレジストリを変更します' },
+  { p: /Invoke-Expression|iex(\s|$)/i,              r: '動的にコードを評価・実行します（インジェクションリスク）' },
+  { p: /-[Ee]nc(odedCommand)?\s/,                   r: 'Base64エンコードされたコマンドを実行します（難読化の可能性）' },
+  { p: /\|\s*(sh|bash|cmd|powershell|iex)\b/i,      r: '外部シェルにパイプして実行します' },
+  { p: /\bsudo\b/i,                                 r: '管理者権限でコマンドを実行します' },
+  { p: /\brunas\b/i,                                r: '別ユーザー権限でコマンドを実行します' },
+];
+
+function checkDanger(command) {
+  // Strip cmd.exe caret escapes (e.g. g^it → git) before pattern matching
+  const normalized = command.replace(/\^/g, "");
+  for (const { p, r } of DANGER_PATTERNS) {
+    if (p.test(normalized)) return r;
+  }
+  return null;
+}
+
+// ── State ───────────────────────────────────────────────────
+marked.use({ breaks: true, gfm: true });
+
+let history          = [];
+let generating       = false;
+let installedModels  = new Set();
+let agentMode        = false;
+let agentWorkDir     = '';
+let currentSessionId = null;
+const pendingApprovals = new Set();
+
+const chatEl        = document.getElementById('chat-container');
+const selectEl      = document.getElementById('model-select');
+const inputEl       = document.getElementById('user-input');
+const sendEl        = document.getElementById('send-btn');
+const resetEl       = document.getElementById('reset-btn');
+const sysBtnEl      = document.getElementById('sysprompt-btn');
+const sysPanelEl    = document.getElementById('sysprompt-panel');
+const sysTextEl     = document.getElementById('sysprompt-textarea');
+const dlOverlay     = document.getElementById('dl-overlay');
+const dlBtnEl       = document.getElementById('dl-btn');
+const dlClose       = document.getElementById('dl-close');
+const modelCardsEl  = document.getElementById('model-cards');
+const wrapperEl     = document.getElementById('input-wrapper');
+const agentToggleEl   = document.getElementById('agent-toggle');
+const agentPanelEl    = document.getElementById('agent-panel');
+const workdirInput    = document.getElementById('workdir-input');
+const workdirSet      = document.getElementById('workdir-set');
+const workdirStatus   = document.getElementById('workdir-status');
+const historyBtnEl    = document.getElementById('history-btn');
+const sessionsSidebar = document.getElementById('sessions-sidebar');
+const sessionsOverlay = document.getElementById('sessions-overlay');
+const newSessBtnEl    = document.getElementById('new-sess-btn');
+const sessionListEl   = document.getElementById('session-list');
+
+// ── System prompt ───────────────────────────────────────────
+sysTextEl.value = localStorage.getItem('codechat_sysprompt') ?? DEFAULT_SYSPROMPT;
+sysTextEl.addEventListener('change', () => localStorage.setItem('codechat_sysprompt', sysTextEl.value));
+sysBtnEl.addEventListener('click', () => {
+  sysPanelEl.classList.toggle('open');
+  sysBtnEl.classList.toggle('active');
+});
+
+// ── Models ──────────────────────────────────────────────────
+async function loadModels() {
+  try {
+    const res  = await fetch(`${API_BASE}/api/tags`);
+    const data = await res.json();
+    installedModels = new Set((data.models || []).map(m => m.name));
+    const prev = selectEl.value;
+    selectEl.innerHTML = '';
+    (data.models || []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = m.name;
+      selectEl.appendChild(opt);
+    });
+    if (prev && installedModels.has(prev)) selectEl.value = prev;
+    if (!selectEl.options.length) throw new Error();
+  } catch {
+    if (!selectEl.options.length)
+      selectEl.innerHTML = '<option value="qwen2.5-coder:7b">qwen2.5-coder:7b</option>';
+  }
+}
+
+// ── Code block UI ───────────────────────────────────────────
+function addCodeUI(container) {
+  container.querySelectorAll('pre').forEach(pre => {
+    if (pre.querySelector('.code-toolbar')) return;
+    const code = pre.querySelector('code');
+    if (!code) return;
+    const lang = [...code.classList].find(c => c.startsWith('language-'))?.replace('language-', '') ?? '';
+    const toolbar = document.createElement('div');
+    toolbar.className = 'code-toolbar';
+    const langEl = document.createElement('span');
+    langEl.className = 'lang-label';
+    langEl.textContent = lang || 'code';
+    toolbar.appendChild(langEl);
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'コピー';
+    btn.onclick = () => {
+      navigator.clipboard.writeText(code.innerText).then(() => {
+        btn.textContent = '✓ コピー済み';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 2000);
+      });
+    };
+    toolbar.appendChild(btn);
+    pre.insertBefore(toolbar, pre.firstChild);
+    hljs.highlightElement(code);
+  });
+}
+
+function updateBubble(el, text) {
+  el.innerHTML = marked.parse(text);
+  addCodeUI(el);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+// ── Chat helpers ────────────────────────────────────────────
+function removeEmpty() { document.getElementById('empty-state')?.remove(); }
+
+function appendMessage(role, text) {
+  removeEmpty();
+  const row = document.createElement('div');
+  row.className = `message ${role}`;
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  av.textContent = role === 'user' ? '👤' : '🤖';
+  const bub = document.createElement('div');
+  bub.className = 'bubble';
+  if (role === 'user') bub.textContent = text;
+  else updateBubble(bub, text);
+  row.append(av, bub);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bub;
+}
+
+function appendLoading() {
+  removeEmpty();
+  const row = document.createElement('div');
+  row.className = 'message assistant';
+  row.id = 'loading-row';
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  av.textContent = '🤖';
+  const bub = document.createElement('div');
+  bub.className = 'bubble';
+  bub.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  row.append(av, bub);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bub;
+}
+
+function buildMessages() {
+  const sys = sysTextEl.value.trim();
+  return sys ? [{ role: 'system', content: sys }, ...history] : [...history];
+}
+
+function buildPrompt() {
+  const sys = sysTextEl.value.trim();
+  const lines = sys ? [`System: ${sys}`] : [];
+  history.forEach(m => lines.push((m.role === 'user' ? 'User' : 'Assistant') + ': ' + m.content));
+  return lines.join('\n') + '\nAssistant:';
+}
+
+// ── Multi-session management ────────────────────────────────
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function getSessions() { try { return JSON.parse(localStorage.getItem('codechat_sessions') || '[]'); } catch { return []; } }
+function putSessions(arr) { localStorage.setItem('codechat_sessions', JSON.stringify(arr)); }
+
+function autoTitle(msgs) {
+  const first = msgs.find(m => m.role === 'user');
+  if (!first) return '新しい会話';
+  const norm = first.content.replace(/\n/g, ' ');
+  return norm.length > 36 ? norm.slice(0, 36) + '…' : norm;
+}
+
+function saveSession() {
+  if (!currentSessionId) return;
+  localStorage.setItem('codechat_session_' + currentSessionId, JSON.stringify(history));
+  const sessions = getSessions();
+  const idx = sessions.findIndex(s => s.id === currentSessionId);
+  if (idx >= 0) {
+    sessions[idx].updatedAt = Date.now();
+    sessions[idx].model = selectEl.value;
+    if (sessions[idx].title === '新しい会話' && history.length > 0) sessions[idx].title = autoTitle(history);
+    putSessions(sessions);
+  }
+  if (sessionsSidebar.classList.contains('open')) renderSessionList();
+}
+
+function createNewSession(messages = []) {
+  const id = genId();
+  const sessions = getSessions();
+  sessions.unshift({ id, title: autoTitle(messages), model: selectEl.value || '', createdAt: Date.now(), updatedAt: Date.now() });
+  putSessions(sessions);
+  localStorage.setItem('codechat_session_' + id, JSON.stringify(messages));
+  localStorage.setItem('codechat_current', id);
+  return id;
+}
+
+const EMPTY_STATE_HTML = `
+  <div id="empty-state">
+    <div class="logo">⚡</div>
+    <h2>CodeChat</h2>
+    <p>コードを貼り付けてレビューを依頼、またはファイルをドロップしてください</p>
+  </div>`;
+
+function switchSession(id) {
+  saveSession();
+  currentSessionId = id;
+  localStorage.setItem('codechat_current', id);
+  history = [];
+  try { const raw = localStorage.getItem('codechat_session_' + id); if (raw) history = JSON.parse(raw); } catch {}
+  chatEl.innerHTML = history.length ? '' : EMPTY_STATE_HTML;
+  history.forEach(m => appendMessage(m.role, m.content));
+  renderSessionList();
+  closeSidebar();
+  updateContextMeter(0);
+}
+
+function deleteSession(id) {
+  const remaining = getSessions().filter(s => s.id !== id);
+  putSessions(remaining);
+  localStorage.removeItem('codechat_session_' + id);
+  if (currentSessionId === id) {
+    currentSessionId = null; // prevent saveSession inside switchSession from re-creating deleted entry
+    if (remaining.length > 0) {
+      switchSession(remaining[0].id);
+    } else {
+      currentSessionId = createNewSession();
+      history = [];
+      chatEl.innerHTML = EMPTY_STATE_HTML;
+      renderSessionList();
+      closeSidebar();
+      updateContextMeter(0);
+    }
+  } else {
+    renderSessionList();
+  }
+}
+
+function renderSessionList() {
+  const sessions = getSessions();
+  sessionListEl.innerHTML = '';
+  if (sessions.length === 0) {
+    sessionListEl.innerHTML = '<div style="padding:14px;font-size:0.8rem;color:var(--text2);text-align:center;">会話がありません</div>';
+    return;
+  }
+  sessions.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'sess-item' + (s.id === currentSessionId ? ' active' : '');
+    const d = new Date(s.updatedAt);
+    const ds = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    item.innerHTML = `<div class="sess-title">${escHtml(s.title)}</div><div class="sess-meta">${ds}${s.model ? ' · '+escHtml(s.model) : ''}</div><button class="sess-del" title="削除">✕</button>`;
+    item.querySelector('.sess-del').addEventListener('click', e => { e.stopPropagation(); if (confirm(`「${s.title}」を削除しますか？`)) deleteSession(s.id); });
+    item.addEventListener('click', () => switchSession(s.id));
+    sessionListEl.appendChild(item);
+  });
+}
+
+function openSidebar()  { sessionsSidebar.classList.add('open'); sessionsOverlay.classList.add('open'); historyBtnEl.classList.add('active'); renderSessionList(); }
+function closeSidebar() { sessionsSidebar.classList.remove('open'); sessionsOverlay.classList.remove('open'); historyBtnEl.classList.remove('active'); }
+
+function initSessions() {
+  // Migrate legacy single-session data
+  const oldHistory = localStorage.getItem('codechat_history');
+  if (oldHistory) {
+    try {
+      const msgs = JSON.parse(oldHistory);
+      if (msgs.length > 0) { createNewSession(msgs); localStorage.removeItem('codechat_history'); }
+    } catch {}
+  }
+  let savedId = localStorage.getItem('codechat_current');
+  const sessions = getSessions();
+  if (sessions.length === 0) {
+    currentSessionId = createNewSession();
+  } else {
+    if (!savedId || !sessions.find(s => s.id === savedId)) savedId = sessions[0].id;
+    currentSessionId = savedId;
+    localStorage.setItem('codechat_current', currentSessionId);
+    try {
+      const raw = localStorage.getItem('codechat_session_' + currentSessionId);
+      if (raw) { history = JSON.parse(raw); history.forEach(m => appendMessage(m.role, m.content)); }
+    } catch {}
+    if (history.length === 0) chatEl.innerHTML = EMPTY_STATE_HTML;
+  }
+}
+
+// ── Regular chat ────────────────────────────────────────────
+async function sendChat(text) {
+  appendMessage('user', text);
+  history.push({ role: 'user', content: text });
+  saveSession();
+
+  const bubble = appendLoading();
+  let accumulated = '';
+  let firstChunk  = true;
+
+  const tryChat = async () => {
+    const res = await fetch(`${API_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: selectEl.value, messages: buildMessages(), stream: true, options: { num_ctx: modelCtxLimit } })
+    });
+    if (res.status === 404) throw Object.assign(new Error('no_chat'), { is404: true });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res;
+  };
+  const tryGenerate = async () => {
+    const res = await fetch(`${API_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: selectEl.value, prompt: buildPrompt(), stream: true, options: { num_ctx: modelCtxLimit } })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res;
+  };
+
+  try {
+    let res, useChat = true;
+    try { res = await tryChat(); }
+    catch (e) { if (e.is404) { res = await tryGenerate(); useChat = false; } else throw e; }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let leftover  = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      leftover += decoder.decode(value, { stream: true });
+      const lines = leftover.split('\n');
+      leftover = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let json;
+        try { json = JSON.parse(line); } catch { continue; }
+        const chunk = useChat ? (json.message?.content ?? '') : (json.response ?? '');
+        if (chunk) {
+          if (firstChunk) { bubble.innerHTML = ''; firstChunk = false; }
+          accumulated += chunk;
+          updateBubble(bubble, accumulated);
+        }
+        if (json.done) {
+          cumulativeContextTokens += (json.prompt_eval_count || 0) + (json.eval_count || 0);
+          updateContextMeter();
+        }
+      }
+    }
+    history.push({ role: 'assistant', content: accumulated });
+    saveSession();
+  } catch (err) {
+    bubble.innerHTML = `<span style="color:var(--red)">⚠ エラー: ${err.message}</span>`;
+    history.pop();
+  } finally {
+    document.getElementById('loading-row')?.removeAttribute('id');
+  }
+}
+
+// ── Agent mode UI ───────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function createAgentRow() {
+  removeEmpty();
+  const row = document.createElement('div');
+  row.className = 'message assistant';
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  av.textContent = '🤖';
+  const bub = document.createElement('div');
+  bub.className = 'bubble';
+  const stepsEl  = document.createElement('div');
+  stepsEl.className = 'agent-steps';
+  const answerEl = document.createElement('div');
+  answerEl.className = 'agent-answer';
+  bub.append(stepsEl, answerEl);
+  row.append(av, bub);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return { stepsEl, answerEl };
+}
+
+function addThinkingIndicator(stepsEl) {
+  const el = document.createElement('div');
+  el.className = 'typing-wrap';
+  el.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  stepsEl.appendChild(el);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return el;
+}
+
+function addToolStep(stepsEl, toolName, args) {
+  const step = document.createElement('div');
+  step.className = 'agent-step';
+
+  // Format args (hide huge content fields)
+  const argsLines = Object.entries(args).map(([k, v]) => {
+    if (k === 'content' && typeof v === 'string' && v.length > 80)
+      return `${k}: [${v.length.toLocaleString()} 文字]`;
+    return `${k}: ${JSON.stringify(v)}`;
+  }).join('\n');
+
+  let extraHtml = '';
+  // For write_file: show content preview
+  if (toolName === 'write_file' && args.content) {
+    const preview = args.content.split('\n').slice(0, 12).join('\n')
+      + (args.content.split('\n').length > 12 ? '\n…' : '');
+    extraHtml = `<div class="file-preview">${escHtml(preview)}</div>`;
+  }
+
+  const needsApproval = NEEDS_APPROVAL.has(toolName);
+  step.innerHTML = `
+    <div class="step-header">
+      <span>${TOOL_ICONS[toolName] || '🔧'}</span>
+      <span class="step-name">${toolName}</span>
+      <span class="step-badge ${needsApproval ? 'badge-pending' : 'badge-auto'}">
+        ${needsApproval ? '承認待ち' : '自動承認'}
+      </span>
+    </div>
+    <div class="step-args">${escHtml(argsLines)}</div>
+    ${extraHtml}
+  `;
+
+  stepsEl.appendChild(step);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return step;
+}
+
+function resolveStep(step, result, approved) {
+  const badge = step.querySelector('.step-badge');
+  const res   = document.createElement('div');
+  res.className = 'step-result';
+
+  if (approved === false) {
+    badge.className = 'step-badge badge-denied';
+    badge.textContent = '拒否';
+    res.textContent = '— スキップ';
+  } else if (result.error) {
+    badge.className = 'step-badge badge-error';
+    badge.textContent = 'エラー';
+    res.className += ' err';
+    res.textContent = result.error;
+  } else {
+    badge.className = 'step-badge badge-approved';
+    badge.textContent = approved ? '実行済み' : '完了';
+    res.className += ' ok';
+    if      (result.chars    != null) res.textContent = `✓ ${result.chars.toLocaleString()} 文字`;
+    else if (result.entries)          res.textContent = `✓ ${result.entries.length} 件`;
+    else if (result.results)          res.textContent = `✓ ${result.results.length} 件マッチ`;
+    else if (result.ok)               res.textContent = `✓ 書き込み完了 (${result.bytes} bytes)`;
+    else if (result.returncode != null) {
+      res.textContent = `✓ 終了コード ${result.returncode}`;
+      if (result.returncode !== 0) { res.className = 'step-result err'; }
+    }
+  }
+  step.appendChild(res);
+}
+
+function askApproval(step, toolName, args) {
+  return new Promise(resolve => {
+    const dangerReason = toolName === 'run_command' ? checkDanger(args.command || '') : null;
+
+    const row = document.createElement('div');
+    row.className = 'approval-row';
+    if (dangerReason) row.style.cssText = 'border-color:var(--red);background:#200a0a;flex-wrap:wrap;gap:6px;';
+
+    let label = '⚠ この操作を実行してもよいですか？';
+    if (toolName === 'run_command') label = `⚠ コマンドを実行: <code style="background:#333;padding:1px 5px;border-radius:3px">${escHtml(args.command ?? '(不明)')}</code>`;
+    if (toolName === 'write_file')  label = `⚠ ファイルを書き込み: <code style="background:#333;padding:1px 5px;border-radius:3px">${escHtml(args.path ?? '(不明)')}</code>`;
+    if (dangerReason) label += `<br><span style="font-size:0.75rem;color:var(--red);margin-top:3px;display:block">🚨 危険操作: ${escHtml(dangerReason)}</span>`;
+
+    row.innerHTML = `<span class="approval-label">${label}</span>`;
+
+    const denyBtn    = document.createElement('button');
+    const approveBtn = document.createElement('button');
+    denyBtn.className    = 'deny-btn';
+    approveBtn.className = 'approve-btn';
+    denyBtn.textContent  = '拒否';
+
+    // Cancellable resolve — registered so reset can cancel pending approvals
+    let settled = false;
+    const settle = (val) => {
+      if (settled) return;
+      settled = true;
+      pendingApprovals.delete(settle);
+      resolve(val);
+    };
+    pendingApprovals.add(settle);
+
+    if (dangerReason) {
+      approveBtn.textContent = '⚠ 本当に実行する？';
+      approveBtn.style.cssText = 'background:#6b1010;border:1px solid var(--red);';
+      let confirmed = false;
+      approveBtn.onclick = () => {
+        if (!confirmed) {
+          confirmed = true;
+          approveBtn.textContent = '確認済み — 実行する';
+          approveBtn.style.background = 'var(--red)';
+        } else {
+          row.remove();
+          settle(true);
+        }
+      };
+    } else {
+      approveBtn.textContent = '承認して実行';
+      approveBtn.onclick = () => { row.remove(); settle(true); };
+    }
+
+    denyBtn.onclick = () => { row.remove(); settle(false); };
+    row.append(denyBtn, approveBtn);
+    step.appendChild(row);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  });
+}
+
+async function callServer(toolName, args) {
+  const res = await fetch(`${SERVER_BASE}/tool/${toolName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(args)
+  });
+  return res.json();
+}
+
+// ── Agent system prompt ─────────────────────────────────────
+const AGENT_SYSPROMPT =
+`あなたはコーディングエージェントです。提供されたツールを使ってタスクを完了してください。
+
+利用できるツール: read_file, write_file, list_dir, run_command, search_content
+
+ルール:
+- ファイルを変更する前に必ず read_file で内容を確認する
+- 必要な情報はツールで収集してから回答する
+- 日本語で回答する`;
+
+// ── Tool call fallback: テキスト中の JSON を検出 ────────────
+function parseToolCallsFromContent(content) {
+  if (!content) return [];
+  const toolNames = new Set(AGENT_TOOLS.map(t => t.function.name));
+  const results   = [];
+
+  function tryExtract(text) {
+    try {
+      const items = JSON.parse(text.trim());
+      for (const item of (Array.isArray(items) ? items : [items])) {
+        if (item?.name && toolNames.has(item.name)) {
+          results.push({
+            function: { name: item.name, arguments: item.arguments ?? item.params ?? {} }
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 1. コードフェンス内（``` ... ```）
+  const blockRe = /```(?:\w*\s*)?([\s\S]*?)```/g;
+  let m;
+  while ((m = blockRe.exec(content)) !== null) tryExtract(m[1]);
+
+  // 2. 生 JSON オブジェクト（ネスト1段まで対応）
+  if (results.length === 0) {
+    const jsonRe = /\{(?:[^{}]|\{[^{}]*\})*\}/g;
+    while ((m = jsonRe.exec(content)) !== null) tryExtract(m[0]);
+  }
+
+  return results;
+}
+
+// ── Agent loop ──────────────────────────────────────────────
+async function runAgent(userText) {
+  appendMessage('user', userText);
+  history.push({ role: 'user', content: userText });
+  saveSession();
+
+  const { stepsEl, answerEl } = createAgentRow();
+
+  // ── プロジェクトツリーを自動取得してシステムプロンプトに注入 ──────────
+  let treeSection = '';
+  try {
+    const treeResult = await callServer('get_tree', {});
+    if (treeResult.tree) {
+      treeSection = `\n\n作業ディレクトリのファイル構造（読み取り専用の参照情報）:\n<project_tree>\n${treeResult.tree}\n</project_tree>\nファイルを読む際は read_file、ファイル名を検索する際は find_files を使ってください。`;
+    }
+  } catch {}
+
+  const agentMessages = [{ role: 'system', content: AGENT_SYSPROMPT + treeSection }, ...history];
+
+  for (let iter = 0; iter < MAX_AGENT_ITERATIONS; iter++) {
+    const thinkEl = addThinkingIndicator(stepsEl);
+
+    let data;
+    try {
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: selectEl.value,
+          messages: agentMessages,
+          tools: AGENT_TOOLS,
+          stream: false,
+          options: { num_ctx: modelCtxLimit }
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+      cumulativeContextTokens += (data.prompt_eval_count || 0) + (data.eval_count || 0);
+      updateContextMeter();
+    } catch (err) {
+      thinkEl.remove();
+      answerEl.innerHTML = `<span style="color:var(--red)">⚠ エラー: ${err.message}</span>`;
+      break;
+    }
+
+    thinkEl.remove();
+    const msg = data.message;
+    agentMessages.push(msg);
+
+    // ── Tool calls（構造化 or コードブロックフォールバック）──
+    const toolCalls = msg.tool_calls?.length > 0
+      ? msg.tool_calls
+      : parseToolCallsFromContent(msg.content);
+
+    if (toolCalls.length > 0) {
+      for (const tc of toolCalls) {
+        const name = tc.function.name;
+        const args = typeof tc.function.arguments === 'string'
+          ? (() => { try { return JSON.parse(tc.function.arguments); } catch { return {}; } })()
+          : (tc.function.arguments ?? {});
+
+        const step = addToolStep(stepsEl, name, args);
+        let approved = true;
+
+        if (NEEDS_APPROVAL.has(name)) {
+          approved = await askApproval(step, name, args);
+        }
+
+        let result;
+        if (!approved) {
+          result = { denied: true };
+          resolveStep(step, result, false);
+          agentMessages.push({ role: 'tool', content: 'ユーザーがこの操作を拒否しました。別のアプローチを検討してください。' });
+        } else {
+          try {
+            result = await callServer(name, args);
+          } catch (e) {
+            result = { error: `server.py に接続できません: ${e.message}` };
+          }
+          resolveStep(step, result, NEEDS_APPROVAL.has(name) ? true : undefined);
+          agentMessages.push({ role: 'tool', content: JSON.stringify(result) });
+        }
+      }
+      // continue loop
+    } else {
+      // ── Final answer ──────────────────────────────────────
+      const finalText = msg.content || '';
+      updateBubble(answerEl, finalText);
+      history.push({ role: 'assistant', content: finalText });
+      saveSession();
+      return;
+    }
+  }
+
+  // Max iterations reached
+  const limitEl = document.createElement('div');
+  limitEl.className = 'agent-limit';
+  limitEl.textContent = `⚠ 最大ステップ数 (${MAX_AGENT_ITERATIONS}) に達しました`;
+  answerEl.appendChild(limitEl);
+}
+
+// ── sendMessage dispatcher ──────────────────────────────────
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text || generating) return;
+
+  generating = true;
+  sendEl.disabled = true;
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+
+  try {
+    if (agentMode) {
+      if (!agentWorkDir) {
+        alert('作業ディレクトリを設定してください');
+        return;
+      }
+      await runAgent(text);
+    } else {
+      await sendChat(text);
+    }
+  } finally {
+    generating = false;
+    sendEl.disabled = false;
+    inputEl.focus();
+  }
+}
+
+// ── Agent toggle ────────────────────────────────────────────
+agentToggleEl.addEventListener('click', async () => {
+  if (!agentMode) {
+    // Check server
+    try {
+      const res  = await fetch(`${SERVER_BASE}/ping`);
+      const data = await res.json();
+      agentMode = true;
+      agentToggleEl.classList.add('active-agent');
+      agentToggleEl.textContent = '🤖 エージェント ON';
+      agentPanelEl.classList.add('open');
+      if (data.workdir) {
+        agentWorkDir = data.workdir;
+        workdirInput.value = data.workdir;
+        workdirStatus.textContent = `✓ ${data.workdir}`;
+        workdirStatus.style.color = 'var(--green)';
+      } else {
+        workdirStatus.textContent = '作業ディレクトリを設定してください';
+        workdirStatus.style.color = 'var(--yellow)';
+      }
+    } catch {
+      alert('server.py が起動していません。\n\nターミナルで以下を実行してください:\n  python server.py');
+    }
+  } else {
+    agentMode = false;
+    agentToggleEl.classList.remove('active-agent');
+    agentToggleEl.textContent = '🤖 エージェント';
+    agentPanelEl.classList.remove('open');
+  }
+});
+
+workdirSet.addEventListener('click', async () => {
+  const path = workdirInput.value.trim();
+  if (!path) return;
+  try {
+    const res  = await fetch(`${SERVER_BASE}/set_workdir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      agentWorkDir = data.path;
+      workdirStatus.textContent = `✓ ${data.path}`;
+      workdirStatus.style.color = 'var(--green)';
+    } else {
+      workdirStatus.textContent = data.error;
+      workdirStatus.style.color = 'var(--red)';
+    }
+  } catch {
+    workdirStatus.textContent = 'server.py に接続できません';
+    workdirStatus.style.color = 'var(--red)';
+  }
+});
+
+// ── Quick actions ───────────────────────────────────────────
+const actionBar = document.getElementById('action-bar');
+QUICK_ACTIONS.forEach(({ label, prefix }) => {
+  const btn = document.createElement('button');
+  btn.className = 'action-btn';
+  btn.textContent = label;
+  btn.onclick = () => {
+    inputEl.value = prefix + inputEl.value;
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+    inputEl.focus();
+    inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+  };
+  actionBar.appendChild(btn);
+});
+
+// ── File drag & drop ────────────────────────────────────────
+wrapperEl.addEventListener('dragover', e => { e.preventDefault(); wrapperEl.classList.add('drag-over'); });
+wrapperEl.addEventListener('dragleave', e => { if (!wrapperEl.contains(e.relatedTarget)) wrapperEl.classList.remove('drag-over'); });
+wrapperEl.addEventListener('drop', e => {
+  e.preventDefault();
+  wrapperEl.classList.remove('drag-over');
+  [...e.dataTransfer.files].forEach(file => {
+    const ext  = file.name.split('.').pop().toLowerCase();
+    const lang = EXT_LANG[ext] ?? ext;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const sep = inputEl.value ? '\n\n' : '';
+      inputEl.value += `${sep}\`\`\`${lang}\n// ${file.name}\n${ev.target.result.trimEnd()}\n\`\`\``;
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+    };
+    reader.readAsText(file);
+  });
+  inputEl.focus();
+});
+
+// ── Download panel ──────────────────────────────────────────
+function buildInstalledActions(name) {
+  return `<button class="dl-btn use-btn" data-use="${escHtml(name)}">このモデルを使用</button>`
+       + `<button class="dl-btn del-btn" data-del="${escHtml(name)}">削除</button>`;
+}
+
+function bindCardActions(card, name) {
+  card.querySelector('[data-use]')?.addEventListener('click', () => {
+    selectEl.value = name;
+    dlOverlay.classList.remove('open');
+  });
+  card.querySelector('[data-del]')?.addEventListener('click', () => deleteModel(card, name));
+}
+
+async function openDownloadPanel() {
+  await loadModels();
+  modelCardsEl.innerHTML = '';
+
+  // ── Recommended models ──────────────────────────────────
+  RECOMMENDED_MODELS.forEach(m => {
+    const installed = installedModels.has(m.name);
+    const card = document.createElement('div');
+    card.className = 'model-card';
+    const badges =
+      (m.recommended ? '<span class="badge badge-rec">推奨</span>' : '') +
+      (installed      ? '<span class="badge badge-inst">インストール済</span>' : '');
+    card.innerHTML = `
+      <div class="mc-top">
+        <span class="mc-name">${m.name}</span>${badges}
+        <span class="mc-size">${m.size}</span>
+      </div>
+      <div class="mc-desc">${m.desc}</div>
+      <div class="mc-bottom">
+        ${installed
+          ? buildInstalledActions(m.name)
+          : `<button class="dl-btn" data-dl="${m.name}">ダウンロード</button>
+             <div class="prog-wrap" style="display:none"><div class="prog-bar"></div></div>
+             <span class="prog-label" style="display:none"></span>`
+        }
+      </div>`;
+    card.querySelector('[data-dl]')?.addEventListener('click', () => startDownload(card, m.name));
+    bindCardActions(card, m.name);
+    modelCardsEl.appendChild(card);
+  });
+
+  // ── Other installed models (not in recommended list) ────
+  const recNames = new Set(RECOMMENDED_MODELS.map(m => m.name));
+  const others   = [...installedModels].filter(n => !recNames.has(n));
+  if (others.length > 0) {
+    const sep = document.createElement('div');
+    sep.style.cssText = 'font-size:0.78rem;color:var(--text2);padding:10px 2px 6px;'
+      + 'border-top:1px solid var(--border);margin-top:8px;';
+    sep.textContent = 'その他のインストール済みモデル';
+    modelCardsEl.appendChild(sep);
+    others.forEach(name => {
+      const card = document.createElement('div');
+      card.className = 'model-card';
+      card.innerHTML = `
+        <div class="mc-top">
+          <span class="mc-name">${escHtml(name)}</span>
+          <span class="badge badge-inst">インストール済</span>
+        </div>
+        <div class="mc-bottom">${buildInstalledActions(name)}</div>`;
+      bindCardActions(card, name);
+      modelCardsEl.appendChild(card);
+    });
+  }
+
+  dlOverlay.classList.add('open');
+}
+
+async function startDownload(card, modelName) {
+  const dlBtn     = card.querySelector('.dl-btn');
+  const progWrap  = card.querySelector('.prog-wrap');
+  const progBar   = card.querySelector('.prog-bar');
+  const progLabel = card.querySelector('.prog-label');
+  dlBtn.disabled = true;
+  dlBtn.textContent = 'ダウンロード中...';
+  progWrap.style.display  = 'block';
+  progLabel.style.display = 'block';
+  progLabel.textContent   = '接続中...';
+  try {
+    const res = await fetch(`${API_BASE}/api/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: modelName, stream: true })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let leftover  = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      leftover += decoder.decode(value, { stream: true });
+      const lines = leftover.split('\n');
+      leftover = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let json; try { json = JSON.parse(line); } catch { continue; }
+        if (json.total && json.completed != null) {
+          const pct = Math.round(json.completed / json.total * 100);
+          progBar.style.width = pct + '%';
+          progLabel.textContent = `${pct}%　${(json.completed/1e9).toFixed(2)} / ${(json.total/1e9).toFixed(2)} GB`;
+        } else if (json.status) {
+          progLabel.textContent = json.status;
+        }
+        if (json.status === 'success') {
+          progBar.style.width = '100%';
+          progLabel.textContent = '✓ 完了';
+          dlBtn.textContent = 'このモデルを使用';
+          dlBtn.classList.add('use-btn');
+          dlBtn.disabled = false;
+          dlBtn.removeAttribute('data-dl');
+          dlBtn.setAttribute('data-use', modelName);
+          dlBtn.addEventListener('click', () => { selectEl.value = modelName; dlOverlay.classList.remove('open'); });
+          const delBtn2 = document.createElement('button');
+          delBtn2.className = 'dl-btn del-btn';
+          delBtn2.setAttribute('data-del', modelName);
+          delBtn2.textContent = '削除';
+          delBtn2.addEventListener('click', () => deleteModel(card, modelName));
+          dlBtn.parentElement.appendChild(delBtn2);
+          installedModels.add(modelName);
+          await loadModels();
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    dlBtn.textContent = '再試行';
+    dlBtn.disabled = false;
+    progLabel.textContent = `エラー: ${err.message}`;
+    dlBtn.addEventListener('click', () => startDownload(card, modelName), { once: true });
+  }
+}
+
+async function deleteModel(card, modelName) {
+  if (!confirm(`「${modelName}」を削除しますか？\nディスクから完全に削除されます。`)) return;
+  const delBtn = card.querySelector('[data-del]');
+  delBtn.disabled = true;
+  delBtn.textContent = '削除中...';
+  try {
+    const res = await fetch(`${API_BASE}/api/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: modelName })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    installedModels.delete(modelName);
+    if (selectEl.value === modelName) {
+      await loadModels();
+      selectEl.value = selectEl.options[0]?.value || '';
+    }
+    openDownloadPanel();
+  } catch (err) {
+    delBtn.disabled = false;
+    delBtn.textContent = '削除';
+    alert(`削除に失敗しました: ${err.message}`);
+  }
+}
+
+dlBtnEl.addEventListener('click', openDownloadPanel);
+dlClose.addEventListener('click', () => dlOverlay.classList.remove('open'));
+dlOverlay.addEventListener('click', e => { if (e.target === dlOverlay) dlOverlay.classList.remove('open'); });
+
+// ── Reset ───────────────────────────────────────────────────
+resetEl.addEventListener('click', () => {
+  if (!confirm('現在の会話をリセットしますか？')) return;
+  // Cancel any pending agent approval dialogs to unfreeze generating state
+  pendingApprovals.forEach(fn => fn(false));
+  pendingApprovals.clear();
+  generating = false;
+  sendEl.disabled = false;
+  history = [];
+  if (currentSessionId) {
+    localStorage.setItem('codechat_session_' + currentSessionId, JSON.stringify([]));
+    const sessions = getSessions();
+    const idx = sessions.findIndex(s => s.id === currentSessionId);
+    if (idx >= 0) { sessions[idx].title = '新しい会話'; sessions[idx].updatedAt = Date.now(); putSessions(sessions); }
+  }
+  chatEl.innerHTML = EMPTY_STATE_HTML;
+  updateContextMeter(0);
+});
+
+// ── Input ───────────────────────────────────────────────────
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+});
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+sendEl.addEventListener('click', sendMessage);
+
+// ── Context tracking ────────────────────────────────────────
+let modelCtxLimit          = 4096;
+let cumulativeContextTokens = 0;
+
+const ctxBar        = document.getElementById('ctx-bar');
+const ctxLabel      = document.getElementById('ctx-label');
+const ctxWarning    = document.getElementById('ctx-warning');
+const ctxWarnText   = document.getElementById('ctx-warn-text');
+const ctxCompressBtn = document.getElementById('ctx-compress-btn');
+const ctxDismissBtn  = document.getElementById('ctx-dismiss-btn');
+
+async function fetchModelCtxLimit(modelName) {
+  try {
+    const res  = await fetch(`${API_BASE}/api/show`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: modelName })
+    });
+    const data = await res.json();
+    const info = data.model_info || data.modelinfo || {};
+    const key  = Object.keys(info).find(k => k.includes('context_length'));
+    if (key) modelCtxLimit = Math.min(info[key], 131072); // 安全上限128k
+  } catch {}
+  updateContextMeter();
+}
+
+function updateContextMeter(tokens) {
+  if (tokens !== undefined) cumulativeContextTokens = tokens;
+  const pct = modelCtxLimit > 0 ? (cumulativeContextTokens / modelCtxLimit * 100) : 0;
+
+  ctxBar.style.width      = Math.min(pct, 100) + '%';
+  ctxBar.style.background = pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--yellow)' : 'var(--green)';
+  ctxLabel.textContent    = `${cumulativeContextTokens.toLocaleString()} / ${(modelCtxLimit/1000).toFixed(0)}k`;
+
+  if (pct >= 80) {
+    ctxWarnText.textContent = pct >= 90
+      ? `⚠ コンテキストが残り ${Math.round(100 - pct)}% です。このまま続けると古い内容が失われます`
+      : `⚠ コンテキストを ${Math.round(pct)}% 使用中です`;
+    ctxWarning.classList.add('show');
+  } else {
+    ctxWarning.classList.remove('show');
+  }
+}
+
+async function compressHistory() {
+  if (history.length < 2) { alert('圧縮できる会話履歴がありません'); return; }
+
+  ctxCompressBtn.disabled    = true;
+  ctxCompressBtn.textContent = '要約中...';
+
+  const convText = history
+    .map(m => `${m.role === 'user' ? 'ユーザー' : 'AI'}: ${m.content.slice(0, 1000)}`)
+    .join('\n\n');
+
+  try {
+    const res  = await fetch(`${API_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: selectEl.value,
+        prompt: `以下の会話を日本語で簡潔に要約してください。重要なコード・技術的な決定事項・未解決の問題を保持してください:\n\n${convText}\n\n要約:`,
+        stream: false
+      })
+    });
+    const data    = await res.json();
+    const summary = data.response?.trim() || '（要約取得失敗）';
+
+    history = [{ role: 'assistant', content: `【以前の会話の要約】\n${summary}` }];
+    saveSession();
+
+    const notice = document.createElement('div');
+    notice.style.cssText = 'text-align:center;font-size:0.77rem;color:var(--text2);padding:5px;'
+      + 'border-top:1px dashed var(--border);border-bottom:1px dashed var(--border);margin:4px 0;';
+    notice.textContent = '— 会話を要約して圧縮しました —';
+    chatEl.appendChild(notice);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    updateContextMeter(0);
+    ctxWarning.classList.remove('show');
+  } catch (err) {
+    alert(`圧縮に失敗しました: ${err.message}`);
+  } finally {
+    ctxCompressBtn.disabled    = false;
+    ctxCompressBtn.textContent = '要約して圧縮';
+  }
+}
+
+ctxCompressBtn.addEventListener('click', compressHistory);
+ctxDismissBtn.addEventListener('click', () => ctxWarning.classList.remove('show'));
+selectEl.addEventListener('change', () => fetchModelCtxLimit(selectEl.value));
+
+// ── Session sidebar events ───────────────────────────────────
+historyBtnEl.addEventListener('click', () => sessionsSidebar.classList.contains('open') ? closeSidebar() : openSidebar());
+sessionsOverlay.addEventListener('click', closeSidebar);
+newSessBtnEl.addEventListener('click', () => { const id = createNewSession(); switchSession(id); });
+
+// ── Init ────────────────────────────────────────────────────
+initSessions();
+loadModels().then(() => {
+  fetchModelCtxLimit(selectEl.value);
+  // Fix stale model name stored before models loaded
+  if (currentSessionId) {
+    const sessions = getSessions();
+    const idx = sessions.findIndex(s => s.id === currentSessionId);
+    if (idx >= 0 && (!sessions[idx].model || sessions[idx].model === '読み込み中...')) {
+      sessions[idx].model = selectEl.value;
+      putSessions(sessions);
+    }
+  }
+});
+inputEl.focus();
+</script>
+</body>
+</html>
