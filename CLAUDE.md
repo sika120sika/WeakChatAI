@@ -110,6 +110,58 @@ CSS フレームワーク・ビルドツール・Node.js は一切不使用。
 ```
 ストリーミングレスポンスの各行: `json.message.content` にチャンクが入る。
 
+## Git 操作メモ
+
+リモートリポジトリ: https://github.com/sika120sika/WeakChatAI（SSH接続）
+
+### PowerShell での注意点
+
+**`gh` コマンドは毎回 PATH を補完する必要がある**（セッションをまたいで PATH が引き継がれないため）:
+```powershell
+$env:PATH += ";C:\Program Files\GitHub CLI"
+gh auth status
+```
+
+**複数行コミットメッセージは PowerShell の here-string を使う**。
+bash の `<<'EOF'` は PowerShell では動かないので注意:
+
+```powershell
+# OK — PowerShell here-string
+$msg = @'
+feat: add something
+
+- detail 1
+- detail 2
+'@
+git commit -m $msg
+
+# NG — bash 構文は PowerShell では ParseError になる
+git commit -m "$(cat <<'EOF'
+...
+EOF
+)"
+```
+
+### 通常の作業フロー
+
+```powershell
+# 変更確認
+git status
+git diff
+
+# ステージング（機密ファイルを誤って含めないよう個別指定）
+git add index.html server.py README.md CLAUDE.md
+
+# コミット（1行で済む場合）
+git commit -m "fix: バグ修正の説明"
+
+# push
+git push
+```
+
+### ブランチ・タグ等
+現状は `main` 1本運用。大きな機能追加時はブランチを切ること。
+
 ## 開発メモ
 - `index.html` 単体で完結させること（外部ファイル禁止）
 - CDN ライブラリは現行バージョンを固定して使う（marked@9.1.6、hljs@11.9）
