@@ -1767,11 +1767,14 @@ async function runAgent(userText) {
     const searchStep = addAutoStep(stepsEl, '🔎', `find_files: ${pattern}`);
     try {
       const r = await callServer('find_files', { pattern });
-      if (r.files?.length > 0) {
-        resolveAutoStep(searchStep, `${r.files.length}件: ${r.files.slice(0, 3).join(', ')}`);
-        treeSection += `\n\n「${name}」のパス: ${r.files.slice(0, 5).join(', ')}`;
+      // シーン定義・自動生成ファイルは自動読み込み対象から除外
+      const SKIP_AUTO_READ = /\.(tscn|tres|import|uid)$/i;
+      const files = (r.files ?? []).filter(f => !SKIP_AUTO_READ.test(f));
+      if (files.length > 0) {
+        resolveAutoStep(searchStep, `${files.length}件: ${files.slice(0, 3).join(', ')}`);
+        treeSection += `\n\n「${name}」のパス: ${files.slice(0, 5).join(', ')}`;
         // 未読の最初のファイルを自動読み込み
-        const target = r.files.find(f => !alreadyRead.has(f)) ?? r.files[0];
+        const target = files.find(f => !alreadyRead.has(f)) ?? files[0];
         alreadyRead.add(target);
         const readStep = addAutoStep(stepsEl, '📄', `read_file: ${target}`);
         try {
