@@ -63,6 +63,9 @@ CSS フレームワーク・ビルドツール・Node.js は一切不使用。
 - [x] チャット履歴エクスポート（Markdown / JSON・サイドバー下部から）
 - [x] モデルパラメータ調整 UI（temperature / top_p / repeat_penalty / num_predict・スライダー・localStorage 保存）
 - [x] クリップボード取り込みボタン（入力欄右の 📋 ボタン）
+- [x] 入力履歴（↑↓キーで過去に送信したテキストを再利用・localStorage 保存・最大50件）
+- [x] AIバブル全体コピーボタン（バブルホバーで表示・全文を Markdown テキストとしてコピー）
+- [x] トースト通知（alert() を非ブロッキングトーストに置き換え・info/warn/error 3種）
 
 ## 高機能化アイデア（優先度順）
 

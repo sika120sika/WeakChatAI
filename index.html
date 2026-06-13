@@ -675,10 +675,11 @@
     }
     #clipboard-btn:hover { background: #383838; color: var(--text); border-color: #505050; }
 
-    /* ── Regenerate button ── */
-    .regen-btn {
-      display: block;
+    /* ── Bubble action buttons (regen / copy) ── */
+    .regen-btn, .bubble-copy-btn {
+      display: inline-block;
       margin-top: 6px;
+      margin-right: 4px;
       background: none;
       border: 1px solid var(--border);
       color: var(--text2);
@@ -689,8 +690,42 @@
       opacity: 0;
       transition: opacity 0.15s, background 0.15s;
     }
-    .message.assistant:hover .regen-btn { opacity: 1; }
-    .regen-btn:hover { background: var(--bg3); color: var(--text); }
+    .message.assistant:hover .regen-btn,
+    .message.assistant:hover .bubble-copy-btn { opacity: 1; }
+    .regen-btn:hover, .bubble-copy-btn:hover { background: var(--bg3); color: var(--text); }
+
+    /* ── Toast notifications ── */
+    #toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.83rem;
+      max-width: 340px;
+      line-height: 1.5;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      animation: toast-in 0.2s ease;
+      pointer-events: auto;
+      cursor: default;
+    }
+    .toast.error   { border-color: var(--red);    color: var(--red); }
+    .toast.success { border-color: var(--green);  color: var(--green); }
+    .toast.warn    { border-color: var(--yellow); color: var(--yellow); }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
 
     /* ── Session export footer ── */
     .sess-footer {
@@ -1081,6 +1116,21 @@ async function loadModels() {
   }
 }
 
+// ── Toast notifications ─────────────────────────────────────
+function showToast(message, type = 'info', duration = 3500) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (type !== 'info' ? ' ' + type : '');
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
 // ── Code block UI ───────────────────────────────────────────
 function addCodeUI(container) {
   container.querySelectorAll('pre').forEach(pre => {
@@ -1111,8 +1161,12 @@ function addCodeUI(container) {
 }
 
 function updateBubble(el, text) {
+  const regenBtn = el.querySelector('.regen-btn');
+  const copyBtn  = el.querySelector('.bubble-copy-btn');
   el.innerHTML = marked.parse(text);
   addCodeUI(el);
+  if (copyBtn)  el.appendChild(copyBtn);
+  if (regenBtn) el.appendChild(regenBtn);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
@@ -1129,7 +1183,7 @@ function appendMessage(role, text) {
   const bub = document.createElement('div');
   bub.className = 'bubble';
   if (role === 'user') bub.textContent = text;
-  else updateBubble(bub, text);
+  else { updateBubble(bub, text); addCopyBtn(bub); }
   row.append(av, bub);
   chatEl.appendChild(row);
   chatEl.scrollTop = chatEl.scrollHeight;
@@ -1354,6 +1408,22 @@ async function _fetchAndStream(bubble) {
   return accumulated;
 }
 
+function addCopyBtn(bubble) {
+  if (bubble.querySelector('.bubble-copy-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'bubble-copy-btn';
+  btn.textContent = '📋 全文コピー';
+  btn.onclick = () => {
+    const clone = bubble.cloneNode(true);
+    clone.querySelectorAll('.bubble-copy-btn, .regen-btn').forEach(el => el.remove());
+    navigator.clipboard.writeText(clone.innerText.trim()).then(() => {
+      btn.textContent = '✓ コピー済み';
+      setTimeout(() => { btn.textContent = '📋 全文コピー'; }, 2000);
+    });
+  };
+  bubble.appendChild(btn);
+}
+
 function addRegenButton(bubble) {
   if (bubble.querySelector('.regen-btn')) return;
   const btn = document.createElement('button');
@@ -1384,6 +1454,7 @@ async function regenerate() {
     const accumulated = await _fetchAndStream(bubble);
     history.push({ role: 'assistant', content: accumulated });
     saveSession();
+    addCopyBtn(bubble);
     addRegenButton(bubble);
   } catch (err) {
     bubble.innerHTML = `<span style="color:var(--red)">⚠ エラー: ${err.message}</span>`;
@@ -1405,6 +1476,7 @@ async function sendChat(text) {
     const accumulated = await _fetchAndStream(bubble);
     history.push({ role: 'assistant', content: accumulated });
     saveSession();
+    addCopyBtn(bubble);
     addRegenButton(bubble);
   } catch (err) {
     bubble.innerHTML = `<span style="color:var(--red)">⚠ エラー: ${err.message}</span>`;
@@ -1733,13 +1805,15 @@ async function sendMessage() {
 
   generating = true;
   sendEl.disabled = true;
+  pushInputHistory(text);
+  historyIndex = -1;
   inputEl.value = '';
   inputEl.style.height = 'auto';
 
   try {
     if (agentMode) {
       if (!agentWorkDir) {
-        alert('作業ディレクトリを設定してください');
+        showToast('作業ディレクトリを設定してください', 'warn');
         return;
       }
       await runAgent(text);
@@ -1774,7 +1848,7 @@ agentToggleEl.addEventListener('click', async () => {
         workdirStatus.style.color = 'var(--yellow)';
       }
     } catch {
-      alert('server.py が起動していません。\n\nターミナルで以下を実行してください:\n  python server.py');
+      showToast('server.py が起動していません。ターミナルで python server.py を実行してください', 'error', 5000);
     }
   } else {
     agentMode = false;
@@ -2079,7 +2153,7 @@ async function deleteModel(card, modelName) {
   } catch (err) {
     delBtn.disabled = false;
     delBtn.textContent = '削除';
-    alert(`削除に失敗しました: ${err.message}`);
+    showToast(`削除に失敗しました: ${err.message}`, 'error');
   }
 }
 
@@ -2106,13 +2180,50 @@ resetEl.addEventListener('click', () => {
   updateContextMeter(0);
 });
 
-// ── Input ───────────────────────────────────────────────────
+// ── Input + 入力履歴 ─────────────────────────────────────────
+const INPUT_HIST_KEY = 'codechat_input_history';
+const MAX_INPUT_HIST = 50;
+let inputHistory  = [];
+let historyIndex  = -1;
+let historyDraft  = '';
+try { inputHistory = JSON.parse(localStorage.getItem(INPUT_HIST_KEY) || '[]'); } catch {}
+
+function pushInputHistory(text) {
+  if (!text || inputHistory[0] === text) return;
+  inputHistory.unshift(text);
+  if (inputHistory.length > MAX_INPUT_HIST) inputHistory.pop();
+  localStorage.setItem(INPUT_HIST_KEY, JSON.stringify(inputHistory));
+}
+
 inputEl.addEventListener('input', () => {
   inputEl.style.height = 'auto';
   inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+  historyIndex = -1;
 });
 inputEl.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); return; }
+
+  if (e.key === 'ArrowUp' && !e.shiftKey && inputEl.selectionStart === 0) {
+    if (historyIndex === -1) historyDraft = inputEl.value;
+    if (historyIndex < inputHistory.length - 1) {
+      historyIndex++;
+      inputEl.value = inputHistory[historyIndex];
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+      inputEl.setSelectionRange(0, 0);
+      e.preventDefault();
+    }
+    return;
+  }
+  if (e.key === 'ArrowDown' && !e.shiftKey && historyIndex >= 0) {
+    historyIndex--;
+    inputEl.value = historyIndex === -1 ? historyDraft : inputHistory[historyIndex];
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
+    const len = inputEl.value.length;
+    inputEl.setSelectionRange(len, len);
+    e.preventDefault();
+  }
 });
 sendEl.addEventListener('click', sendMessage);
 
@@ -2161,7 +2272,7 @@ function updateContextMeter(tokens) {
 }
 
 async function compressHistory() {
-  if (history.length < 2) { alert('圧縮できる会話履歴がありません'); return; }
+  if (history.length < 2) { showToast('圧縮できる会話履歴がありません', 'warn'); return; }
 
   ctxCompressBtn.disabled    = true;
   ctxCompressBtn.textContent = '要約中...';
@@ -2196,7 +2307,7 @@ async function compressHistory() {
     updateContextMeter(0);
     ctxWarning.classList.remove('show');
   } catch (err) {
-    alert(`圧縮に失敗しました: ${err.message}`);
+    showToast(`圧縮に失敗しました: ${err.message}`, 'error');
   } finally {
     ctxCompressBtn.disabled    = false;
     ctxCompressBtn.textContent = '要約して圧縮';
@@ -2223,7 +2334,7 @@ document.getElementById('clipboard-btn').addEventListener('click', async () => {
     inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + 'px';
     inputEl.focus();
   } catch {
-    alert('クリップボードへのアクセスが拒否されました。ブラウザの設定で許可してください。');
+    showToast('クリップボードへのアクセスが拒否されました。ブラウザの設定で許可してください', 'error');
   }
 });
 
@@ -2279,7 +2390,7 @@ paramsBtnEl.addEventListener('click', () => {
 
 // ── Session export ──────────────────────────────────────────
 function exportSession(format) {
-  if (!history.length) { alert('エクスポートできる会話がありません'); return; }
+  if (!history.length) { showToast('エクスポートできる会話がありません', 'warn'); return; }
   const sess  = getSessions().find(s => s.id === currentSessionId);
   const title = sess?.title || 'chat';
   const safe  = title.replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 40) || 'chat';
@@ -2323,5 +2434,6 @@ loadModels().then(() => {
 });
 inputEl.focus();
 </script>
+<div id="toast-container"></div>
 </body>
 </html>
