@@ -1741,10 +1741,13 @@ async function runAgent(userText) {
   } catch {}
 
   // ── メッセージ内のファイル名を自動 find_files + read_file して注入 ──────
+  // ファイル内容はユーザーメッセージ直前に置く（systemより注目される）
   const FILE_EXTS = /\.(cs|gd|py|js|ts|jsx|tsx|json|yaml|yml|cfg|ini|tscn|tres|sh|md|toml|xml|html|css|cpp|c|h|rs|go|java|kt|rb|php)$/i;
   const mentioned = [...new Set(
     (userText.match(/\b[\w\-]+\.[a-zA-Z]{1,6}\b/g) || []).filter(f => FILE_EXTS.test(f))
   )].slice(0, 3);
+
+  let userContext = '';  // ユーザーメッセージ直前に挿入するファイル内容
 
   for (const fname of mentioned) {
     const searchStep = addAutoStep(stepsEl, '🔎', `find_files: *${fname}*`);
@@ -1765,7 +1768,6 @@ async function runAgent(userText) {
             let truncated = false;
             if (rc.content.length > CHAR_LIMIT) {
               preview = rc.content.slice(0, CHAR_LIMIT);
-              // 行途中で切らない
               const lastNl = preview.lastIndexOf('\n');
               if (lastNl > 0) preview = preview.slice(0, lastNl);
               truncated = true;
@@ -1773,10 +1775,10 @@ async function runAgent(userText) {
             const shownLines = preview.split('\n').length;
             const header = `=== ${r.files[0]} (全${totalLines}行・${rc.chars.toLocaleString()}文字) ===`;
             const footer = truncated
-              ? `\n...(${shownLines}行まで表示。残り${totalLines - shownLines}行は省略。続きを読むには read_file を使用してください)`
+              ? `\n...(先頭${shownLines}行を表示。残り${totalLines - shownLines}行は省略)`
               : '';
-            treeSection += `\n\n${header}\n${preview}${footer}`;
-            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字 / ${totalLines}行${truncated ? ` (先頭${shownLines}行を注入)` : ''}`);
+            userContext += `\n${header}\n${preview}${footer}\n`;
+            resolveAutoStep(readStep, `${rc.chars.toLocaleString()}文字 / ${totalLines}行${truncated ? ` (先頭${shownLines}行)` : ''}`);
           }
         } catch { resolveAutoStep(readStep, 'エラー', true); }
       } else if (!r.error) {
@@ -1788,7 +1790,15 @@ async function runAgent(userText) {
     } catch { resolveAutoStep(searchStep, 'サーバー未接続', true); }
   }
 
-  const agentMessages = [{ role: 'system', content: AGENT_SYSPROMPT + treeSection }, ...history];
+  // ファイル内容をユーザーメッセージの直前に埋め込む
+  const sysMsg = { role: 'system', content: AGENT_SYSPROMPT + treeSection };
+  const agentMessages = userContext
+    ? [
+        sysMsg,
+        ...history.slice(0, -1),
+        { role: 'user', content: `[参照ファイル（自動取得済み）]\n${userContext.trim()}\n\n---\n${history[history.length - 1].content}` }
+      ]
+    : [sysMsg, ...history];
 
   for (let iter = 0; iter < MAX_AGENT_ITERATIONS; iter++) {
     const thinkEl = addThinkingIndicator(stepsEl);
