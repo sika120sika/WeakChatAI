@@ -1956,6 +1956,7 @@ workdirSet.addEventListener('click', async () => {
       agentWorkDir = data.path;
       workdirStatus.textContent = `✓ ${data.path}`;
       workdirStatus.style.color = 'var(--green)';
+      localStorage.setItem('codechat_workdir', data.path);
     } else {
       workdirStatus.textContent = data.error;
       workdirStatus.style.color = 'var(--red)';
@@ -2502,6 +2503,57 @@ function exportSession(format) {
 document.getElementById('export-md-btn').addEventListener('click', () => exportSession('md'));
 document.getElementById('export-json-btn').addEventListener('click', () => exportSession('json'));
 
+// ── Agent auto-connect on load ───────────────────────────────
+async function tryAutoConnectAgent() {
+  const savedDir = localStorage.getItem('codechat_workdir');
+  if (savedDir) workdirInput.value = savedDir;
+
+  try {
+    const res  = await fetch(`${SERVER_BASE}/ping`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    agentMode = true;
+    agentToggleEl.classList.add('active-agent');
+    agentToggleEl.textContent = '🤖 エージェント ON';
+    agentPanelEl.classList.add('open');
+
+    const dirToUse = data.workdir || savedDir;
+    if (dirToUse) {
+      if (!data.workdir) {
+        // サーバーにはまだ設定されていないので自動 set
+        const sr = await fetch(`${SERVER_BASE}/set_workdir`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: dirToUse })
+        });
+        const sd = await sr.json();
+        if (sd.ok) {
+          agentWorkDir = sd.path;
+          workdirInput.value = sd.path;
+          workdirStatus.textContent = `✓ ${sd.path}`;
+          workdirStatus.style.color = 'var(--green)';
+          localStorage.setItem('codechat_workdir', sd.path);
+        } else {
+          workdirStatus.textContent = `前回のフォルダが見つかりません: ${dirToUse}`;
+          workdirStatus.style.color = 'var(--yellow)';
+        }
+      } else {
+        agentWorkDir = data.workdir;
+        workdirInput.value = data.workdir;
+        workdirStatus.textContent = `✓ ${data.workdir}`;
+        workdirStatus.style.color = 'var(--green)';
+        localStorage.setItem('codechat_workdir', data.workdir);
+      }
+    } else {
+      workdirStatus.textContent = '作業ディレクトリを設定してください';
+      workdirStatus.style.color = 'var(--yellow)';
+    }
+  } catch {
+    // server.py 未起動 — workdir 入力欄だけ復元済みで通常モードのまま
+  }
+}
+
 // ── Init ────────────────────────────────────────────────────
 initSessions();
 loadModels().then(() => {
@@ -2516,6 +2568,7 @@ loadModels().then(() => {
     }
   }
 });
+tryAutoConnectAgent();
 inputEl.focus();
 </script>
 <div id="toast-container"></div>
